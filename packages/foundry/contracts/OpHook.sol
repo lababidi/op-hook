@@ -25,7 +25,7 @@ interface IOptionToken {
     IERC20 public collateral;
 }
 
-contract Counter is BaseHook {
+contract OpHook is BaseHook {
     using PoolIdLibrary for PoolKey;
 
     IOptionPriceOracle public immutable priceOracle;
