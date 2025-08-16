@@ -1,0 +1,3 @@
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts
+@openzeppelin/uniswap-hooks/=lib/uniswap-hooks/
+v4-core/=lib/uniswap-hooks/lib/v4-core/

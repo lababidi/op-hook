@@ -1,0 +1,21 @@
+[submodule "packages/foundry/lib/forge-std"]
+	path = packages/foundry/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "packages/foundry/lib/openzeppelin-contracts"]
+	path = packages/foundry/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "packages/foundry/lib/solidity-bytes-utils"]
+	path = packages/foundry/lib/solidity-bytes-utils
+	url = https://github.com/gnsps/solidity-bytes-utils
+[submodule "lib/v4-core"]
+	path = lib/v4-core
+	url = https://github.com/Uniswap/v4-core
+[submodule "packages/foundry/lib/v4-core"]
+	path = packages/foundry/lib/v4-core
+	url = https://github.com/Uniswap/v4-core
+[submodule "lib/uniswap-hooks"]
+	path = lib/uniswap-hooks
+	url = https://github.com/OpenZeppelin/uniswap-hooks
+[submodule "packages/foundry/lib/uniswap-hooks"]
+	path = packages/foundry/lib/uniswap-hooks
+	url = https://github.com/OpenZeppelin/uniswap-hooks
