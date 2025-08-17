@@ -175,21 +175,24 @@ contract OptionPrice {
         return expVal;
 
     }
+    function abs(int256 x) internal pure returns (uint256) {
+        return uint256(x >= 0 ? x : -x);
+    }
 
     // Standard normal CDF using Abramowitz & Stegun approximation, input x in 1e18, output 1e18
     // Logistic function approximation of the standard normal CDF
     // CDF(x) ≈ 1 / (1 + exp(-rate * x)), with x in 1e18 fixed point, rate ≈ 1.67
     function normCDF(int256 x) public pure returns (uint256) {
-        uint256 x_ = uint256(x);
+        uint256 x_ = abs(x);
         // rate = 1.67 in 1e18 fixed point
         uint256 rate = 1670000000000000000;
         // Compute -rate * x / 1e18 to keep fixed point math
         uint256 negExponent = ((rate * x_) / 1e18);
         uint256 expVal = expNeg(negExponent); // exp returns 1e18 fixed point
+        
         // 1e18 / (1e18 + expVal)
-        uint256 rightside = (1e18 * 1e18) / uint256(1e18 + int256(expVal));
-        uint256 leftside = 1 - rightside;
-        return x_>1e18 ? leftside : rightside;
+        uint256 rightside = (1e18 * 1e18) / (1e18 + expVal);
+        return x>0 ? rightside : 1 - rightside;
     }
 
     // Square root for 1e18 fixed point, returns 1e18 fixed point

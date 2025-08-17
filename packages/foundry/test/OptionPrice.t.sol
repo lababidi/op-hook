@@ -61,8 +61,8 @@ contract OptionPriceTest is Test {
         // Using 1e18 fixed point: 841344746068542948
         assertApproxEqRel(
             optionPrice.normCDF(1e18), 
-            841344746068542948, 
-            0.05e18, // 5% tolerance due to approximation
+            uint256(841344746068542948), 
+            uint256(5e16), // 5% tolerance due to approximation
             "CDF(1) should be approximately 0.8413"
         );
     }
@@ -185,12 +185,12 @@ contract OptionPriceTest is Test {
     }
 
     // ln function tests
-    function test_ln_one() public {
+    function test_ln_one() public view {
         // ln(1) = 0
         assertEq(optionPrice.ln(1e18), 0, "ln(1) should equal 0");
     }
     
-    function test_ln_one_point_five() public {
+    function test_ln_one_point_five() public view {
         // ln(1.5) ≈ 0.405465108108164381978013115464349136571990423462494197614014
         // Using 1e18 fixed point: 405465108108164381
         assertApproxEqRel(
@@ -201,7 +201,7 @@ contract OptionPriceTest is Test {
         );
     }
     
-    function test_ln_two() public {
+    function test_ln_two() public view {
         // ln(2) ≈ 0.693147180559945309417232121458176568075500134360255254120680
         // Using 1e18 fixed point: 693147180559945309
         assertApproxEqRel(
@@ -212,7 +212,7 @@ contract OptionPriceTest is Test {
         );
     }
     
-    function test_ln_one_point_zero_five() public {
+    function test_ln_one_point_zero_five() public view {
         // ln(1.05) ≈ 0.048790164169432048
         assertApproxEqRel(
             optionPrice.ln(105e16), // 1.05 in 1e18 fixed point
