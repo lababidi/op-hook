@@ -3,6 +3,7 @@ src = 'contracts'
 out = 'out'
 libs = ['lib', 'node_modules']
 fs_permissions = [{ access = "read-write", path = "./"}]
+via_ir = true
 
 
 [rpc_endpoints]
