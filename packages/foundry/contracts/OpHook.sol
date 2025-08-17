@@ -20,17 +20,6 @@ import {IOptionToken} from "./IOptionToken.sol";
 contract OpHook is BaseHook {
     using PoolIdLibrary for PoolKey;
 
-    // NOTE: ---------------------------------------------------------
-    // state variables should typically be unique to a pool
-    // a single hook contract should be able to service multiple pools
-    // ---------------------------------------------------------------
-
-    mapping(PoolId => uint256 count) public beforeSwapCount;
-    mapping(PoolId => uint256 count) public afterSwapCount;
-
-    mapping(PoolId => uint256 count) public beforeAddLiquidityCount;
-    mapping(PoolId => uint256 count) public beforeRemoveLiquidityCount;
-
     OptionPrice public immutable optionPrice;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
@@ -56,10 +45,6 @@ contract OpHook is BaseHook {
         });
     }
 
-    // -----------------------------------------------
-    // NOTE: see IHooks.sol for function documentation
-    // -----------------------------------------------
-
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         override
@@ -75,13 +60,42 @@ contract OpHook is BaseHook {
             uint256 token1Amount = (amount * 1e18) / price;
             optionToken.mint(token1Amount);
             BeforeSwapDelta delta = BeforeSwapDeltaLibrary.toBeforeSwapDelta(-amount.toInt128(), token1Amount.toInt128());
+            poolManager.mint(address(this), key.currency0.toId(), amount);
+            poolManager.burn(address(this), key.currency1.toId(), token1Amount);
         } else {
             uint256 price = optionPrice.getPrice(token1, true);
             uint256 token0Amount = (amount * 1e18) / price;
             optionToken.redeem(amount);
             BeforeSwapDelta delta = BeforeSwapDeltaLibrary.toBeforeSwapDelta(token0Amount.toInt128(), -amount.toInt128());
+            poolManager.mint(address(this), key.currency1.toId(), token1Amount);
+            poolManager.burn(address(this), key.currency0.toId(), amount);
         }
         return (BaseHook.beforeSwap.selector, delta, 0);
+    }
+
+    function addLiquidity(
+        IPermit2.PermitTransferFrom calldata permit, 
+        IPermit2.SignatureTransferDetails calldata transferDetails, 
+        address owner, 
+        bytes calldata signature
+        ) public notExpired onlyOwner nonReentrant {
+            // NOTE: this is a hack to add liquidity to the pool using the underlying asset
+            // needs to be converted to something like a uniswap NFT token
+        if (consideration.balanceOf(owner) < transferDetails.requestedAmount) revert InsufficientBalance();
+        
+        PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
+
+    }
+
+    function removeLiquidity(
+        IPermit2.PermitTransferFrom calldata permit, 
+        IPermit2.SignatureTransferDetails calldata transferDetails, 
+        address owner, 
+        bytes calldata signature
+        ) public notExpired onlyOwner nonReentrant {
+        if (consideration.balanceOf(owner) < transferDetails.requestedAmount) revert InsufficientBalance();
+        
+        PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
     }
 
 }
