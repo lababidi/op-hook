@@ -192,7 +192,7 @@ contract OptionPrice {
         
         // 1e18 / (1e18 + expVal)
         uint256 rightside = (1e18 * 1e18) / (1e18 + expVal);
-        return x>0 ? rightside : 1 - rightside;
+        return x>0 ? rightside : 1e18 - rightside;
     }
 
     // Square root for 1e18 fixed point, returns 1e18 fixed point
