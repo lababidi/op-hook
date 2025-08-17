@@ -103,7 +103,7 @@ contract OptionPrice {
         uint256 Nd2 = normCDF(d2);
 
         // exp(-r*t)
-        uint256 expRT = exp(-r * int256(t) / int256(1e18));
+        uint256 expRT = expNeg(r * int256(t) / int256(1e18));
 
         uint256 price;
         if (isCall) {
@@ -151,44 +151,41 @@ contract OptionPrice {
         return n;
     }
 
-    // Exponential function e^x, x in 1e18 fixed point, returns 1e18 fixed point
-    function exp(int256 x) internal pure returns (uint256) {
-        // Use Taylor expansion for small x, or repeated squaring for larger x
-        // For simplicity, use a few terms of Taylor expansion
+    // Exponential function e^{-x}, x >= 0 in 1e18 fixed point, returns 1e18 fixed point
+    // This is specialized for exp(-x) where x > 0, as used in Black-Scholes
+    function expNeg(int256 x) internal pure returns (uint256) {
+        // Use a few terms of the Taylor expansion for e^{-x}
+        // e^{-x} = 1 - x + x^2/2! - x^3/3! + ...
+        if (x>5 *1e18) {
+            return 0;
+        }
+        if (x==0) {
+            return 1e18;
+        }
         int256 sum = 1e18;
         int256 term = 1e18;
+        int256 sign = -1;
         for (uint8 i = 1; i < 20; i++) {
             term = (term * x) / int256(1e18) / int256(i);
-            sum += term;
+            sum += sign * term;
+            sign *= -1;
             if (term == 0) break;
         }
-        return uint256(sum);
+        // Clamp to zero if negative due to rounding
+        return sum > 0 ? uint256(sum) : 0;
     }
 
     // Standard normal CDF using Abramowitz & Stegun approximation, input x in 1e18, output 1e18
+    // Logistic function approximation of the standard normal CDF
+    // CDF(x) ≈ 1 / (1 + exp(-rate * x)), with x in 1e18 fixed point, rate ≈ 1.67
     function normCDF(int256 x) internal pure returns (uint256) {
-        // constants
-        int256 a1 = 254829592;
-        int256 a2 = -284496736;
-        int256 a3 = 142141374;
-        int256 a4 = -35476517;
-        int256 a5 = 3015300;
-        int256 p = 3275911;
-
-        int256 sign = 1;
-        if (x < 0) {
-            sign = -1;
-            x = -x;
-        }
-        int256 t = 1e18 * 1e6 / (1e6 + (p * x) / 1e12); // t = 1 / (1 + p*x)
-        int256 y = (((((a5 * t) / 1e6 + a4) * t) / 1e6 + a3) * t / 1e6 + a2) * t / 1e6 + a1;
-        y = (y * t) / 1e6;
-        y = 1e18 - (y * exp(-((x * x) / 2e18))) / 1e18;
-        if (sign == 1) {
-            return (1e18 + y) / 2;
-        } else {
-            return (1e18 - y) / 2;
-        }
+        // rate = 1.67 in 1e18 fixed point
+        int256 rate = 1670000000000000000;
+        // Compute -rate * x / 1e18 to keep fixed point math
+        int256 exponent = ((rate * x) / 1e18);
+        uint256 expVal = expNeg(exponent); // exp returns 1e18 fixed point
+        // 1e18 / (1e18 + expVal)
+        return (1e18 * 1e18) / (1e18 + expVal);
     }
 
     // Square root for 1e18 fixed point, returns 1e18 fixed point
@@ -204,7 +201,7 @@ contract OptionPrice {
 
 
     // Returns the price of the token (18 decimals)
-    function getPrice(address token) external view returns (uint256) {
+    function getPrice(address token, bool inverse) external view returns (uint256) {
         IOptionToken optionToken = IOptionToken(token);
         uint256 expiration = optionToken.expirationDate();
         uint256 strike = optionToken.strike();
@@ -214,14 +211,8 @@ contract OptionPrice {
 
         uint256 collateralPrice = getCollateralPrice(collateral);
 
-        return collateralPrice ;
+        return inverse ? 1e36 / collateralPrice : collateralPrice ;
     }
 
-    // Returns the inverse price (1e36 / price) to maintain 18 decimals
-    function getInversePrice(address token) external view returns (uint256) {
-        uint256 price = prices[token];
-        require(price > 0, "Price not set");
-        // To avoid loss of precision, multiply 1e36 then divide by price
-        return 1e36 / price;
-    }
+
 }
