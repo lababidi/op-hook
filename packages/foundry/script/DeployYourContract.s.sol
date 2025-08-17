@@ -31,10 +31,10 @@ contract DeployYourContract is ScaffoldETHDeploy {
     function run() external ScaffoldEthDeployerRunner {
         // For testing purposes, we'll use a mock pool manager address
         // In production, you would deploy or use an existing PoolManager
-        address testnetAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-        address mockPoolManager = address(testnetAddress);
+        address testnetPoolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
+        address poolManager = address(testnetPoolManager);
 
-        bytes memory constructorArgs = abi.encode(address(mockPoolManager));
+        bytes memory constructorArgs = abi.encode(address(poolManager));
 
         // Mine a salt that will produce a hook address with the correct flags
         (address hookAddress, bytes32 salt) = HookMiner.find(
@@ -48,7 +48,7 @@ contract DeployYourContract is ScaffoldETHDeploy {
         console.log("Using salt:", uint256(salt));
 
         // Deploy the hook using CREATE2
-        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(mockPoolManager)));
+        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)));
         require(address(hook) == hookAddress, "OpHook: hook address mismatch");
 
         console.log("OpHook deployed successfully at:", address(hook));
