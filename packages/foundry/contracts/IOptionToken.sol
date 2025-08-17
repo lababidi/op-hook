@@ -3,20 +3,8 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IPermit2 } from "./IPermit2.sol";
 
-interface IPermit2 {
-    struct PermitTransferFrom {
-        address token;
-        uint160 amount;
-        uint48 nonce;
-        uint48 deadline;
-    }
-
-    struct SignatureTransferDetails {
-        address to;
-        uint160 requestedAmount;
-    }
-}
 
 interface IOptionToken {
     // Structs

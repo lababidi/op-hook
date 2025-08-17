@@ -15,6 +15,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {OptionPrice} from "./OptionPrice.sol";
 
 import {IOptionToken} from "./IOptionToken.sol";
+import {IPermit2} from "./IPermit2.sol";
 
 
 contract OpHook is BaseHook {
@@ -22,8 +23,11 @@ contract OpHook is BaseHook {
 
     OptionPrice public immutable optionPrice;
 
+    IPermit2 public immutable PERMIT2;
+
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         optionPrice = OptionPrice();
+        PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -55,22 +59,35 @@ contract OpHook is BaseHook {
         IOptionToken optionToken = IOptionToken(token1);
         require(params.amountSpecified < 0, "amountSpecified must be negative");
         uint256 amount = uint256(-params.amountSpecified);
+        int256 amount_ = int256(amount);
         if (params.zeroForOne) {
             uint256 price = optionPrice.getPrice(token1, false);
             uint256 token1Amount = (amount * 1e18) / price;
-            optionToken.mint(token1Amount);
-            BeforeSwapDelta delta = BeforeSwapDeltaLibrary.toBeforeSwapDelta(-amount.toInt128(), token1Amount.toInt128());
+            IPermit2.PermitTransferFrom memory permit = IPermit2.PermitTransferFrom({
+                token: address(optionToken),
+                amount: token1Amount,
+                nonce: block.timestamp,
+                deadline: block.timestamp + 1 days
+            });
+            IPermit2.SignatureTransferDetails memory transferDetails = IPermit2.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: token1Amount
+            });
+            bytes memory signature = new bytes(0);
+            optionToken.mint(permit, transferDetails, signature);
+            BeforeSwapDelta delta = BeforeSwapDeltaLibrary.toBeforeSwapDelta(-amount_.toInt128(), token1Amount.toInt128());
             poolManager.mint(address(this), key.currency0.toId(), amount);
             poolManager.burn(address(this), key.currency1.toId(), token1Amount);
+            return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
             uint256 price = optionPrice.getPrice(token1, true);
             uint256 token0Amount = (amount * 1e18) / price;
             optionToken.redeem(amount);
-            BeforeSwapDelta delta = BeforeSwapDeltaLibrary.toBeforeSwapDelta(token0Amount.toInt128(), -amount.toInt128());
-            poolManager.mint(address(this), key.currency1.toId(), token1Amount);
-            poolManager.burn(address(this), key.currency0.toId(), amount);
+            BeforeSwapDelta delta = BeforeSwapDeltaLibrary.toBeforeSwapDelta(token0Amount.toInt128(), -amount_.toInt128());
+            poolManager.mint(address(this), key.currency1.toId(), amount);
+            poolManager.burn(address(this), key.currency0.toId(), token0Amount);
+            return (BaseHook.beforeSwap.selector, delta, 0);
         }
-        return (BaseHook.beforeSwap.selector, delta, 0);
     }
 
     function addLiquidity(
@@ -78,10 +95,9 @@ contract OpHook is BaseHook {
         IPermit2.SignatureTransferDetails calldata transferDetails, 
         address owner, 
         bytes calldata signature
-        ) public notExpired onlyOwner nonReentrant {
+        ) public {
             // NOTE: this is a hack to add liquidity to the pool using the underlying asset
             // needs to be converted to something like a uniswap NFT token
-        if (consideration.balanceOf(owner) < transferDetails.requestedAmount) revert InsufficientBalance();
         
         PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
 
@@ -92,8 +108,7 @@ contract OpHook is BaseHook {
         IPermit2.SignatureTransferDetails calldata transferDetails, 
         address owner, 
         bytes calldata signature
-        ) public notExpired onlyOwner nonReentrant {
-        if (consideration.balanceOf(owner) < transferDetails.requestedAmount) revert InsufficientBalance();
+        ) public {
         
         PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
     }

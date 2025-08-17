@@ -2,7 +2,8 @@
 pragma solidity ^0.8.19;
 
 import "./DeployHelpers.s.sol";
-import "../contracts/YourContract.sol";
+import "../contracts/OpHook.sol";
+
 
 /**
  * @notice Deploy script for Counter contract
@@ -27,11 +28,8 @@ contract DeployYourContract is ScaffoldETHDeploy {
     function run() external ScaffoldEthDeployerRunner {
         // For testing purposes, we'll use a mock pool manager address
         // In production, you would deploy or use an existing PoolManager
-        address OptionPrice = new OptionPrice();
-        
+        address mockPoolManager = address(0x1234567890123456789012345678901234567890);        
 
-        address mockPoolManager = address(0x1234567890123456789012345678901234567890);
-        
-        new Counter(IPoolManager(mockPoolManager));
+        new OpHook(IPoolManager(mockPoolManager));
     }
 }
