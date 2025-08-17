@@ -26,6 +26,8 @@ contract OpHook is BaseHook {
 
     IPermit2 public immutable PERMIT2;
 
+    mapping(address => bool) public whitelist;
+
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         optionPrice = new OptionPrice();
         PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
@@ -55,31 +57,41 @@ contract OpHook is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+
+        address token0 = Currency.unwrap(key.currency0);
         address token1 = Currency.unwrap(key.currency1);
-        IOptionToken optionToken = IOptionToken(token1);
+        address tokenA;
+        if (whitelist[token1]){
+            tokenA = token1;
+        } else if (whitelist[token0]){
+            tokenA = token0;
+        } else {
+            revert("Token not whitelisted");
+        }
+        IOptionToken optionToken = IOptionToken(tokenA);
         require(params.amountSpecified < 0, "amountSpecified must be negative");
         uint256 amount = uint256(-params.amountSpecified);
         int128 amount_ = int128(int256(amount));
         if (params.zeroForOne) {
-            uint256 price = optionPrice.getPrice(token1, false);
-            uint256 token1Amount = (amount * price) / 1e18;
-            int128 token1Amount_ = int128(int256(token1Amount));
-            require(token1Amount <= optionToken.balanceOf(address(this)), "Insufficient optionToken balance");
+            uint256 price = optionPrice.getPrice(tokenA, false);
+            uint256 tokenAAmount = (amount * price) / 1e18;
+            int128 tokenAAmount_ = int128(int256(tokenAAmount));
+            require(tokenAAmount <= optionToken.balanceOf(address(this)), "Insufficient optionToken balance");
 
-            optionToken.mint(token1Amount);
-            BeforeSwapDelta delta = toBeforeSwapDelta(-amount_, token1Amount_);
+            optionToken.mint(tokenAAmount);
+            BeforeSwapDelta delta = toBeforeSwapDelta(-amount_, tokenAAmount_);
             poolManager.mint(address(this), key.currency0.toId(), amount);
-            poolManager.burn(address(this), key.currency1.toId(), token1Amount);
+            poolManager.burn(address(this), key.currency1.toId(), tokenAAmount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
-            uint256 price = optionPrice.getPrice(token1, true);
-            uint256 token0Amount = (amount * price) / 1e18;
-            int128 token0Amount_ = int128(int256(token0Amount));
-            optionToken.redeem(amount);
-            BeforeSwapDelta delta = toBeforeSwapDelta(token0Amount_, -amount_);
+            uint256 price = optionPrice.getPrice(tokenA, true);
+            uint256 tokenBAmount = (amount * price) / 1e18;
+            int128 tokenBAmount_ = int128(int256(tokenBAmount));
+            BeforeSwapDelta delta = toBeforeSwapDelta(tokenBAmount_, -amount_);
             poolManager.mint(address(this), key.currency1.toId(), amount);
-            poolManager.burn(address(this), key.currency0.toId(), token0Amount);
+            poolManager.burn(address(this), key.currency0.toId(), tokenBAmount);
             poolManager.settle();
+            optionToken.redeem(amount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         }
     }
@@ -98,13 +110,20 @@ contract OpHook is BaseHook {
     }
 
     function removeLiquidity(
-        IPermit2.PermitTransferFrom calldata permit, 
-        IPermit2.SignatureTransferDetails calldata transferDetails, 
-        address owner, 
-        bytes calldata signature
+        address token,
+        uint256 amount
         ) public {
+        // NOTE: Again this is a hack, and should be a burn type of method
         
-        PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
+        IERC20(token).transfer(msg.sender, amount);
+    }
+
+    function whitelistToken(address token) public {
+        whitelist[token] = true;
+    }
+
+    function removeWhitelistToken(address token) public {
+        whitelist[token] = false;
     }
 
 }
