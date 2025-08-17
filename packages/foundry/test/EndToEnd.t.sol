@@ -15,6 +15,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
+import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
 
 contract TestERC20 is IERC20 {
             string public name;
@@ -83,6 +84,8 @@ contract EndToEndTest is Test {
     address public testnetPoolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
     PoolManager public poolManager;
 
+    address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
+
     function setUp() public {
         // For testing without forking mainnet, we'll use a local environment
         // In production, you would use: vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 19000000);
@@ -91,7 +94,7 @@ contract EndToEndTest is Test {
         optionPrice = new OptionPrice();
         // fork mainnet here
         // vm.createSelectFork("https://rpc.flashbots.net");
-        vm.createSelectFork("https://rpc.sepolia.org");
+        vm.createSelectFork("https://ethereum-sepolia-rpc.publicnode.com");
 
         // Deploy two ERC20 tokens and allocate 10 of each to the test user (alice)
         // We'll use a simple ERC20 implementation for testing
@@ -118,7 +121,25 @@ contract EndToEndTest is Test {
 
 
     function test_HookSwap() public {
-        OpHook opHook = new OpHook(poolManager);
+
+
+
+
+        bytes memory constructorArgs = abi.encode(address(poolManager));
+
+        // Mine a salt that will produce a hook address with the correct flags
+        (address hookAddress, bytes32 salt) = HookMiner.find(
+            CREATE2_DEPLOYER,
+            uint160(Hooks.BEFORE_SWAP_FLAG),
+            type(OpHook).creationCode,
+            constructorArgs
+        );
+
+        console.log("Deploying OpHook to address:", hookAddress);
+        console.log("Using salt:", uint256(salt));
+
+        // Deploy the hook using CREATE2
+        OpHook opHook = new OpHook{salt: salt}(IPoolManager(address(poolManager)));
         poolManager.initialize(PoolKey({
             currency0: Currency.wrap(address(tokenA)),
             currency1: Currency.wrap(address(tokenB)),
