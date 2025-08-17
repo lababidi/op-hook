@@ -37,18 +37,8 @@ library PriceMath {
 contract OptionPrice {
     // For demonstration, we use a simple mapping to store prices for each token address.
     // In production, this would be replaced by a real oracle or pricing logic.
-    mapping(address => uint256) public prices; // price with 18 decimals
 
     mapping(address => address) public pool; //we're sticking to USDC for now and WETH
-
-    // Set price for a token (for testing/demo purposes)
-    function setPrice(address token, uint256 price) external {
-        prices[token] = price;
-    }
-
-    function getExpiration(address token) external view returns (uint256) {
-        return IOptionToken(token).expirationDate();
-    }
 
     function getCollateralPrice(IERC20 collateral) external view returns (uint256) {
         return PriceMath.getPrice(IUniswapV3Pool(pool[address(collateral)]));
