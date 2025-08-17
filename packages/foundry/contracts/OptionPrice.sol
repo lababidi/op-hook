@@ -112,10 +112,11 @@ contract OptionPrice {
     // --- Math helpers ---
 
     // Natural logarithm (ln) for 1e18 fixed point, returns 1e18 fixed point
-    function ln(uint256 x) internal pure returns (int256) {
+    function ln(uint256 x) public pure returns (int256) {
         // Precomputed ln(x) values for x in [1.0, 2.0] in 0.05 increments, x in 1e18 fixed point
         // x is 1e18 fixed point, valid for x in [1e18, 2e18]
         // grid: x = 1.00, 1.05, 1.10, ..., 2.00 (21 values)
+        require(x >= 1e18 && x <= 2e18, "ln: x out of grid range");
         int256[21] memory lnGrid = [
             int256(0), 
              48790164169432048,  95310179804324928, 139761942375158816, 
@@ -125,7 +126,6 @@ contract OptionPrice {
             500775287912489600, 530628251062170688, 559615787935423104, 
             587786664902119424, 615185639090233856, 641853886172395264, 
             667829372575655936, 693147180559945728];
-        require(x >= 1e18 && x <= 2e18, "ln: x out of grid range");
         // Compute index: round((x - 1e18) / 5e16)
         // (x - 1e18) is in [0, 1e18], so divide by 5e16 to get [0,20]
         uint256 idx = uint256((x - 1e18 + 25e15) / 5e16); // +0.025 for rounding
@@ -135,7 +135,7 @@ contract OptionPrice {
 
     // Exponential function e^{-x}, x >= 0 in 1e18 fixed point, returns 1e18 fixed point
     // This is specialized for exp(-x) where x > 0, as used in Black-Scholes
-    function expNeg(uint256 x) internal pure returns (uint256) {
+    function expNeg(uint256 x) public pure returns (uint256) {
         if (x>10 *1e18) {
             return 0;
         }
@@ -165,8 +165,12 @@ contract OptionPrice {
             10567204383852654, 10051835744633586, 9561601930543504, 9095277101695816, 8651695203120634, 
             8229747049020030, 7828377549225767, 7446583070924338, 7083408929052118, 6737946999085467
         ];
-        uint256 idx = uint256((x - 1e18 + 25e15) / 5e16); // +0.025 for rounding
-        if (idx > 20) idx = 20;
+        // For x in [0, 10e18], map x to idx in [0,99] for expGrid (step size = 0.1e18)
+        // this is actually 0 to 5
+        // There are 100 items in expGrid, mapping x in [0, 5e18] to idx in [0,99]
+        // Each step is 0.05e18 (5e16)
+        uint256 idx = uint256(-1 + int256(x / 5e16)); // 5e16 = 0.05e18, so x in [0, 5e18] maps to idx in [0,99]
+        if (idx > 99) idx = 99;
         uint256 expVal = uint256(expGrid[idx]);
         return expVal;
 
@@ -175,16 +179,17 @@ contract OptionPrice {
     // Standard normal CDF using Abramowitz & Stegun approximation, input x in 1e18, output 1e18
     // Logistic function approximation of the standard normal CDF
     // CDF(x) ≈ 1 / (1 + exp(-rate * x)), with x in 1e18 fixed point, rate ≈ 1.67
-    function normCDF(int256 x) internal pure returns (uint256) {
+    function normCDF(int256 x) public pure returns (uint256) {
         uint256 x_ = uint256(x);
-        int256 m = x_>1e18 ? int256(1) : int256(-1);
         // rate = 1.67 in 1e18 fixed point
         uint256 rate = 1670000000000000000;
         // Compute -rate * x / 1e18 to keep fixed point math
         uint256 negExponent = ((rate * x_) / 1e18);
         uint256 expVal = expNeg(negExponent); // exp returns 1e18 fixed point
         // 1e18 / (1e18 + expVal)
-        return (1e18 * 1e18) / uint256(1e18 + m*int256(expVal));
+        uint256 rightside = (1e18 * 1e18) / uint256(1e18 + int256(expVal));
+        uint256 leftside = 1 - rightside;
+        return x_>1e18 ? leftside : rightside;
     }
 
     // Square root for 1e18 fixed point, returns 1e18 fixed point

@@ -7,7 +7,7 @@ import "../contracts/OpHook.sol";
 contract OpHookTest is Test {
     OpHook public opHook;
 
-    function testOpHookCompilation() public view {
+    function testOpHookCompilation() public pure {
         // Basic test to ensure the contract compiles successfully
         // The counter contract is a Uniswap v4 hook that tracks swap and liquidity events
         assert(true);
