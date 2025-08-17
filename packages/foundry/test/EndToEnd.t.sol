@@ -16,6 +16,11 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
+import {Constants} from "@uniswap/v4-core/test/utils/Constants.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+
+// import {Deployers} from "v4-core/test/utils/Deployers.sol";
 
 contract TestERC20 is IERC20 {
             string public name;
@@ -69,7 +74,7 @@ contract EndToEndTest is Test {
     
     // Test addresses (these would be deployed option tokens in a real scenario)
     address constant TEST_OPTION_TOKEN = 0x1234567890123456789012345678901234567890;
-
+    bytes constant ZERO_BYTES = new bytes(0);
     OptionPrice public optionPrice;
     
     // Test users
@@ -83,6 +88,7 @@ contract EndToEndTest is Test {
     address public mainnetPoolManager = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address public testnetPoolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
     PoolManager public poolManager;
+    PoolSwapTest public swapRouter;
 
     address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
 
@@ -96,12 +102,15 @@ contract EndToEndTest is Test {
         // vm.createSelectFork("https://rpc.flashbots.net");
         vm.createSelectFork("https://ethereum-sepolia-rpc.publicnode.com");
 
+        // Deployers.deployFreshManagerAndRouters();
+
         // Deploy two ERC20 tokens and allocate 10 of each to the test user (alice)
         // We'll use a simple ERC20 implementation for testing
 
         // Minimal ERC20 for testing
 
-        poolManager = new PoolManager(testnetPoolManager);
+        poolManager = new PoolManager(address(this));
+        swapRouter = new PoolSwapTest(poolManager);
         
 
         // Deploy two test ERC20 tokens
@@ -138,19 +147,40 @@ contract EndToEndTest is Test {
         console.log("Deploying OpHook to address:", hookAddress);
         console.log("Using salt:", uint256(salt));
 
+        address token1 = address(tokenA) < address(tokenB) ? address(tokenA) : address(tokenB);
+        address token2 = address(tokenA) < address(tokenB) ? address(tokenB) : address(tokenA);
+
         // Deploy the hook using CREATE2
-        OpHook opHook = new OpHook{salt: salt}(IPoolManager(address(poolManager)));
+        vm.startBroadcast();
+        OpHook opHook = new OpHook{salt: salt}(poolManager);
+        poolManager.unlock("");
         poolManager.initialize(PoolKey({
-            currency0: Currency.wrap(address(tokenA)),
-            currency1: Currency.wrap(address(tokenB)),
+            currency0: Currency.wrap(token1),
+            currency1: Currency.wrap(token2),
             fee: 3000,
             hooks: opHook,
             tickSpacing: 60
         }), 1e18);
         opHook.whitelist(TEST_OPTION_TOKEN);
-        poolManager.swap(PoolKey({
-            currency0: Currency.wrap(address(tokenA)),
-            currency1: Currency.wrap(address(tokenB)),
+
+        PoolSwapTest.TestSettings memory testSettings = PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
+
+        // swapRouter.swap(PoolKey({
+        //     currency0: Currency.wrap(token1),
+        //     currency1: Currency.wrap(token2),
+        //     fee: 3000,
+        //     tickSpacing: 60,
+        //     hooks: IHooks(address(opHook))  
+        // }), SwapParams({
+        //     zeroForOne: true,
+        //     amountSpecified: -1e18,
+        //     sqrtPriceLimitX96: 0
+        // }), testSettings, ZERO_BYTES);
+
+
+        swapRouter.swap(PoolKey({
+            currency0: Currency.wrap(token1),
+            currency1: Currency.wrap(token2),
             fee: 3000,
             hooks: opHook,
             tickSpacing: 60
@@ -158,7 +188,9 @@ contract EndToEndTest is Test {
             zeroForOne: true,
             amountSpecified: -1e18,
             sqrtPriceLimitX96: 0
-        }), "");
+        }), testSettings, ZERO_BYTES);
+
+        vm.stopBroadcast();
     }
 
 }

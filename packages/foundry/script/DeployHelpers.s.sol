@@ -41,11 +41,8 @@ contract ScaffoldETHDeploy is Script {
         (, address _deployer,) = vm.readCallers();
 
         if (block.chainid == 31337 && _deployer.balance == 0) {
-            try this.anvil_setBalance(_deployer, ANVIL_BASE_BALANCE) {
-                emit AnvilSetBalance(_deployer, ANVIL_BASE_BALANCE);
-            } catch {
-                emit FailedAnvilRequest();
-            }
+            anvil_setBalance(_deployer, ANVIL_BASE_BALANCE);
+            emit AnvilSetBalance(_deployer, ANVIL_BASE_BALANCE);
         }
         return _deployer;
     }
@@ -71,11 +68,7 @@ contract ScaffoldETHDeploy is Script {
 
         string memory chainName;
 
-        try this.getChain() returns (Chain memory chain) {
-            chainName = chain.name;
-        } catch {
-            chainName = findChainName();
-        }
+        chainName = getChain().name;
         jsonWrite = vm.serializeString(jsonWrite, "networkName", chainName);
         vm.writeJson(jsonWrite, path);
     }
