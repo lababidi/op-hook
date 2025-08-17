@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "./DeployHelpers.s.sol";
 import "../contracts/OpHook.sol";
 import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
+import {Hooks} from "lib/uniswap-hooks/lib/v4-core/src/libraries/Hooks.sol";
 
 /**
  * @notice Deploy script for OpHook contract
@@ -30,17 +31,15 @@ contract DeployYourContract is ScaffoldETHDeploy {
     function run() external ScaffoldEthDeployerRunner {
         // For testing purposes, we'll use a mock pool manager address
         // In production, you would deploy or use an existing PoolManager
-        address mockPoolManager = address(0x1234567890123456789012345678901234567890);
-
-        // OpHook only uses beforeSwap permission
-        uint160 flags = uint160(0x80); // BEFORE_SWAP_FLAG = 1 << 7 = 128 = 0x80
+        address testnetAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
+        address mockPoolManager = address(testnetAddress);
 
         bytes memory constructorArgs = abi.encode(address(mockPoolManager));
 
         // Mine a salt that will produce a hook address with the correct flags
         (address hookAddress, bytes32 salt) = HookMiner.find(
             CREATE2_DEPLOYER,
-            flags,
+            uint160(Hooks.BEFORE_SWAP_FLAG),
             type(OpHook).creationCode,
             constructorArgs
         );

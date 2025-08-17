@@ -62,36 +62,24 @@ contract OpHook is BaseHook {
         int128 amount_ = int128(int256(amount));
         if (params.zeroForOne) {
             uint256 price = optionPrice.getPrice(token1, false);
-            uint256 token1Amount = (amount * 1e18) / price;
+            uint256 token1Amount = (amount * price) / 1e18;
             int128 token1Amount_ = int128(int256(token1Amount));
+            require(token1Amount <= optionToken.balanceOf(address(this)), "Insufficient optionToken balance");
 
-            ISignatureTransfer.TokenPermissions memory permitted = ISignatureTransfer.TokenPermissions({
-                token: address(optionToken),
-                amount: token1Amount
-            });
-            ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-                permitted: permitted,
-                nonce: block.timestamp,
-                deadline: block.timestamp + 1 days
-            });
-            ISignatureTransfer.SignatureTransferDetails memory transferDetails = ISignatureTransfer.SignatureTransferDetails({
-                to: address(this),
-                requestedAmount: token1Amount
-            });
-            bytes memory signature = new bytes(0);
-            optionToken.mint(permit, transferDetails, signature);
+            optionToken.mint(token1Amount);
             BeforeSwapDelta delta = toBeforeSwapDelta(-amount_, token1Amount_);
             poolManager.mint(address(this), key.currency0.toId(), amount);
             poolManager.burn(address(this), key.currency1.toId(), token1Amount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
             uint256 price = optionPrice.getPrice(token1, true);
-            uint256 token0Amount = (amount * 1e18) / price;
+            uint256 token0Amount = (amount * price) / 1e18;
             int128 token0Amount_ = int128(int256(token0Amount));
             optionToken.redeem(amount);
             BeforeSwapDelta delta = toBeforeSwapDelta(token0Amount_, -amount_);
             poolManager.mint(address(this), key.currency1.toId(), amount);
             poolManager.burn(address(this), key.currency0.toId(), token0Amount);
+            poolManager.settle();
             return (BaseHook.beforeSwap.selector, delta, 0);
         }
     }

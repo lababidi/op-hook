@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IPermit2 } from "./IPermit2.sol";
 
 
-interface IOptionToken {
+interface IOptionToken is IERC20 {
     // Structs
     struct TokenData {
         string name;
@@ -58,6 +58,11 @@ interface IOptionToken {
         IPermit2.PermitTransferFrom calldata permit,
         IPermit2.SignatureTransferDetails calldata transferDetails,
         bytes calldata signature
+    ) external;
+
+    // Option operations
+    function mint(
+        uint256 amount
     ) external;
 
     function exercise(
