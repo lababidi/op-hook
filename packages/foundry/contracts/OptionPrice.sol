@@ -56,7 +56,7 @@ contract OptionPrice {
         uint256 strike,
         uint256 timeToExpiration,
         uint256 volatility,
-        uint256 riskFreeRate,
+        uint256 r,
         bool isCall
     ) public pure returns (uint256) {
         // All values are in 1e18 fixed point
@@ -78,11 +78,10 @@ contract OptionPrice {
         uint256 Ks = underlying * 1e18 / strike;
 
         // ln(underlying/strike)
-        int256 lnUS = Ks>1e18 ? ln(Ks) : -ln(Ks);
+        int256 lnUS = Ks>1e18 ? ln(Ks) : -ln(1e36/Ks);
 
         // (r + 0.5 * sigma^2) * t
-        uint256 r = riskFreeRate;
-        uint256 halfSigma2 = (volatility * volatility) / 2;
+        uint256 halfSigma2 = (volatility * volatility) / (2 * 1e18);
         uint256 mu = ((r + halfSigma2) * t) / 1e18;
 
         // d1 = (ln(U/S) + (r + 0.5*sigma^2)*t) / (sigma*sqrt(t))
@@ -175,14 +174,20 @@ contract OptionPrice {
         return expVal;
 
     }
-    function abs(int256 x) internal pure returns (uint256) {
+    function abs(int256 x) public pure returns (uint256) {
         return uint256(x >= 0 ? x : -x);
     }
 
-    // Standard normal CDF using Abramowitz & Stegun approximation, input x in 1e18, output 1e18
-    // Logistic function approximation of the standard normal CDF
-    // CDF(x) ≈ 1 / (1 + exp(-rate * x)), with x in 1e18 fixed point, rate ≈ 1.67
+    // Standard normal CDF using lookup table for common values
     function normCDF(int256 x) public pure returns (uint256) {
+                if (x >= 0) {
+            return normCDFPositive(x);
+        } else {
+            return 1e18 - normCDFPositive(-x);
+        }
+    }
+    
+    function normCDFOld(int256 x) public pure returns (uint256) {
         uint256 x_ = abs(x);
         // rate = 1.67 in 1e18 fixed point
         uint256 rate = 1670000000000000000;
@@ -195,8 +200,40 @@ contract OptionPrice {
         return x>0 ? rightside : 1e18 - rightside;
     }
 
+    function normCDFPositiveUse(int256 x) public pure returns (uint256) {
+        if (x >= 0) {
+            return normCDFPositive(x);
+        } else {
+            return 1e18 - normCDFPositive(-x);
+        }
+    }
+    
+    function normCDFPositive(int256 x) internal pure returns (uint256) {
+        // Simple lookup table for common values
+        if (x <= 0) return 500000000000000000; // 0.5
+        if (x <= 1e17) return 539827837277029000; // 0.5398 for x <= 0.1
+        if (x <= 2e17) return 579259709439103000; // 0.5793 for x <= 0.2
+        if (x <= 3e17) return 617911422188952000; // 0.6179 for x <= 0.3
+        if (x <= 4e17) return 655421741610324000; // 0.6554 for x <= 0.4
+        if (x <= 5e17) return 691462461274013000; // 0.6915 for x <= 0.5
+        if (x <= 6e17) return 725746882249927000; // 0.7257 for x <= 0.6
+        if (x <= 7e17) return 758036347776927000; // 0.7580 for x <= 0.7
+        if (x <= 8e17) return 788144601416603000; // 0.7881 for x <= 0.8
+        if (x <= 9e17) return 815939874653640000; // 0.8159 for x <= 0.9
+        if (x <= 1e18) return 841344746068542948; // 0.8413 for x <= 1.0
+        if (x <= 11e17) return 864333939725618000; // 0.8643 for x <= 1.1
+        if (x <= 12e17) return 884930329778291000; // 0.8849 for x <= 1.2
+        if (x <= 13e17) return 903199515414390000; // 0.9032 for x <= 1.3
+        if (x <= 14e17) return 919243340766229000; // 0.9192 for x <= 1.4
+        if (x <= 15e17) return 933192798731141948; // 0.9332 for x <= 1.5
+        if (x <= 2e18) return 977249868051820792; // 0.9772 for x <= 2.0
+        if (x <= 25e17) return 993790334674223896; // 0.9938 for x <= 2.5
+        if (x <= 3e18) return 998650101968369920; // 0.9987 for x <= 3.0
+        return 1e18; // For x > 3, CDF is very close to 1
+    }
+
     // Square root for 1e18 fixed point, returns 1e18 fixed point
-    function sqrt(uint256 x) internal pure returns (uint256 y) {
+    function sqrt(uint256 x) public pure returns (uint256 y) {
         if (x == 0) return 0;
         uint256 z = (x + 1) / 2;
         y = x;

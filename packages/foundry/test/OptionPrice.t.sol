@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {OptionPrice} from "../contracts/OptionPrice.sol";
 
 contract OptionPriceTest is Test {
@@ -184,6 +184,57 @@ contract OptionPriceTest is Test {
         assertEq(itmExpiredCallPrice, 20e18, "Expired ITM call should have intrinsic value of $20");
     }
 
+    function test_BlackScholes_debug() public view {
+        // Test case: ATM call option with 1 year to expiration
+        uint256 underlying = 100e18; // $100
+        uint256 strike = 100e18; // $100 (at-the-money)
+        uint256 timeToExpiration = 31536000; // 1 year in seconds
+        uint256 volatility = 0.2e18; // 20% volatility
+        uint256 riskFreeRate = 0.05e18; // 5% risk-free rate
+        bool isCall = true;
+        
+        // Debug intermediate values
+        uint256 t = (timeToExpiration * 1e18) / 31536000;
+        console.log("t (years):", t);
+        
+        uint256 sigmaSqrtT = optionPrice.sqrt((volatility * volatility * t) / 1e18);
+        console.log("sigma*sqrt(t):", sigmaSqrtT);
+        
+        uint256 Ks = underlying * 1e18 / strike;
+        console.log("Ks (underlying/strike):", Ks);
+        
+        int256 lnUS = Ks>1e18 ? optionPrice.ln(Ks) : -optionPrice.ln(1e36/Ks);
+        console.log("ln(underlying/strike):", lnUS);
+        
+        uint256 halfSigma2 = (volatility * volatility) / 2;
+        uint256 mu = ((riskFreeRate + halfSigma2) * t) / 1e18;
+        console.log("mu ((r + 0.5*sigma^2)*t):", mu);
+        
+        int256 d1 = (lnUS + int256(mu)) * 1e18 / int256(sigmaSqrtT);
+        console.log("d1:", d1);
+        
+        int256 d2 = d1 - int256(sigmaSqrtT);
+        console.log("d2:", d2);
+        
+        uint256 Nd1 = optionPrice.normCDF(d1);
+        uint256 Nd2 = optionPrice.normCDF(d2);
+        console.log("N(d1):", Nd1);
+        console.log("N(d2):", Nd2);
+        
+        uint256 expRT = optionPrice.expNeg(riskFreeRate * t / 1e18);
+        console.log("exp(-r*t):", expRT);
+        
+        uint256 callPrice = optionPrice.blackScholesPrice(
+            underlying, 
+            strike, 
+            timeToExpiration, 
+            volatility, 
+            riskFreeRate, 
+            isCall
+        );
+        console.log("Final call price:", callPrice);
+    }
+
     // ln function tests
     function test_ln_one() public view {
         // ln(1) = 0
@@ -238,5 +289,25 @@ contract OptionPriceTest is Test {
         // Test that out-of-range values revert
         vm.expectRevert("ln: x out of grid range");
         optionPrice.ln(3e18); // x > 2
+    }
+
+    function test_normCDF_BlackScholes_values() public view {
+        // Test the actual values produced by the Black-Scholes calculation
+        int256 d1 = 350000000000000000; // 0.35 in 1e18 fixed point (actual value from Black-Scholes)
+        int256 d2 = 150000000000000000; // 0.15 in 1e18 fixed point (actual value from Black-Scholes)
+        
+        console.log("Testing normCDF for d1 = 0.35");
+        uint256 Nd1 = optionPrice.normCDF(d1);
+        console.log("N(d1):", Nd1);
+        
+        console.log("Testing normCDF for d2 = 0.15");
+        uint256 Nd2 = optionPrice.normCDF(d2);
+        console.log("N(d2):", Nd2);
+        
+        // Expected values for the actual Black-Scholes calculation:
+        // N(0.35) ≈ 0.6368
+        // N(0.15) ≈ 0.5596
+        assertApproxEqRel(Nd1, 636800000000000000, 0.1e18, "N(0.35) should be approximately 0.6368");
+        assertApproxEqRel(Nd2, 559600000000000000, 0.1e18, "N(0.15) should be approximately 0.5596");
     }
 }
