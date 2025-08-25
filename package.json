@@ -56,5 +56,9 @@
   "packageManager": "yarn@3.2.3",
   "engines": {
     "node": ">=20.18.3"
+  },
+  "dependencies": {
+    "@fontsource/share": "^5.2.6",
+    "geist": "^1.4.2"
   }
 }
