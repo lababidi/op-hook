@@ -33,8 +33,8 @@ contract InitPoolScript is ScaffoldETHDeploy {
     // option tokens
     // '0xadeFC3Ca8AB9974E4F3e3B5e09e94305988323Dd', '0xC40683e575391B60D7E20Ef284432b84c7276c02']
     // TODO: Replace with your token addresses (must be sorted numerically)
-    address constant TOKEN0_ADDRESS = address(0x6550c8d40f06c8A5B003A0622538980Fc4AF7492);
-    address constant TOKEN1_ADDRESS = address(0xadeFC3Ca8AB9974E4F3e3B5e09e94305988323Dd);
+    address constant TOKEN0_ADDRESS = address(0x083dC0B99F583B5F6eD9c86612B3CcB8e8845b4A);
+    address constant TOKEN1_ADDRESS = address(0x6550c8d40f06c8A5B003A0622538980Fc4AF7492);
     // Pool configuration
     uint24 constant FEE = 0; // 0.3% fee tier
     int24 constant TICK_SPACING = 60; // Standard for 0.3% fee tier
@@ -74,7 +74,8 @@ contract InitPoolScript is ScaffoldETHDeploy {
             currency1: Currency.wrap(TOKEN1_ADDRESS),
             fee: FEE,
             tickSpacing: TICK_SPACING,
-            hooks: IHooks(HOOK_ADDRESS)
+            // hooks: IHooks(HOOK_ADDRESS)
+            hooks: IHooks(address(0))
         });
         
         // Get pool ID for logging
