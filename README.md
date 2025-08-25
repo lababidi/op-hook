@@ -1,23 +1,44 @@
-# 🏗 Scaffold-ETH 2
+# 🎯 OpSwap - Decentralized Options Trading Platform
 
 <h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
+  <a href="https://docs.scaffoldeth.io">Scaffold-ETH 2 Docs</a> |
+  <a href="https://scaffoldeth.io">Scaffold-ETH 2 Website</a>
 </h4>
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+🚀 A decentralized options trading platform built on Ethereum using Scaffold-ETH 2, Uniswap V4 hooks, and advanced DeFi protocols. OpSwap enables users to trade options with deep liquidity pools and sophisticated pricing models.
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, TypeScript, and Uniswap V4.
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## 🎯 Project Overview
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+OpSwap is a comprehensive options trading platform that combines:
 
-## Requirements
+- **🪝 Uniswap V4 Hooks**: Custom hooks for options trading integration
+- **💰 Option Pool Vaults**: ERC4626 compliant vaults for managing option assets
+- **📊 Black-Scholes Pricing**: Advanced options pricing using mathematical models
+- **🔄 Liquidity Management**: Automated liquidity provision and management
+- **🔐 Secure Trading**: Whitelisted tokens and permissioned trading
+
+## 🏗️ Architecture
+
+### Smart Contracts
+
+- **`OpHook.sol`**: Uniswap V4 hook for options trading integration
+- **`OptionPool.sol`**: Core options pool with cell-based liquidity management
+- **`OptionPoolVault.sol`**: ERC4626 vault for option pool asset management
+- **`OptionPrice.sol`**: Black-Scholes options pricing implementation
+- **`IOptionToken.sol`**: Interface for option token interactions
+
+### Frontend
+
+- **NextJS App**: Modern React frontend with TypeScript
+- **OpSwap Interface**: Dedicated options trading interface at `/opswapfront`
+- **Debug Interface**: Contract interaction and testing tools
+- **Block Explorer**: Local transaction monitoring
+
+## 🚀 Quickstart
+
+### Prerequisites
 
 Before you begin, you need to install the following tools:
 
@@ -25,56 +46,119 @@ Before you begin, you need to install the following tools:
 - Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
 - [Git](https://git-scm.com/downloads)
 
-## Quickstart
+### Installation & Setup
 
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install dependencies if it was skipped in CLI:
-
-```
-cd my-dapp-example
+1. **Install dependencies**:
+```bash
 yarn install
 ```
 
-2. Run a local network in the first terminal:
-
-```
+2. **Start local blockchain** (Terminal 1):
+```bash
 yarn chain
 ```
 
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
-
-3. On a second terminal, deploy the test contract:
-
-```
+3. **Deploy contracts** (Terminal 2):
+```bash
 yarn deploy
 ```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
-
-4. On a third terminal, start your NextJS app:
-
-```
+4. **Start frontend** (Terminal 3):
+```bash
 yarn start
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+5. **Access the application**:
+   - Main app: `http://localhost:3000`
+   - OpSwap interface: `http://localhost:3000/opswapfront`
+   - Debug contracts: `http://localhost:3000/debug`
+   - Block explorer: `http://localhost:3000/blockexplorer`
 
-Run smart contract test with `yarn foundry:test`
+### Testing
 
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
+Run smart contract tests:
+```bash
+yarn foundry:test
+```
 
+## 🎯 Key Features
 
-## Documentation
+### Options Trading
+- **Call & Put Options**: Support for both call and put option types
+- **Black-Scholes Pricing**: Mathematical options pricing model
+- **Strike Price Management**: Flexible strike price configuration
+- **Expiration Handling**: Automated expiration and settlement
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
+### Liquidity Management
+- **Cell-Based Liquidity**: Efficient liquidity distribution across price ranges
+- **Fee Collection**: Automated fee collection and distribution
+- **Position Management**: Advanced position tracking and management
+- **Vault Integration**: ERC4626 compliant vault for asset management
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+### Security & Access Control
+- **Whitelisted Tokens**: Permissioned trading for approved tokens
+- **Access Control**: Role-based permissions for admin functions
+- **Emergency Pause**: Circuit breakers for emergency situations
+- **Reentrancy Protection**: Secure contract interactions
 
-## Contributing to Scaffold-ETH 2
+## 🛠️ Development
 
-We welcome contributions to Scaffold-ETH 2!
+### Smart Contract Development
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+- **Contracts**: `packages/foundry/contracts/`
+- **Tests**: `packages/foundry/test/`
+- **Deployment Scripts**: `packages/foundry/script/`
+
+### Frontend Development
+
+- **Main App**: `packages/nextjs/app/page.tsx`
+- **OpSwap Interface**: `packages/nextjs/app/opswapfront/page.tsx`
+- **Components**: `packages/nextjs/components/`
+- **Hooks**: `packages/nextjs/hooks/scaffold-eth/`
+
+### Configuration
+
+- **Scaffold Config**: `packages/nextjs/scaffold.config.ts`
+- **Foundry Config**: `packages/foundry/foundry.toml`
+- **Deployed Contracts**: `packages/nextjs/contracts/deployedContracts.ts`
+
+## 🔧 Contract Interactions
+
+### Reading Data
+```typescript
+const { data: optionPrice } = useScaffoldReadContract({
+  contractName: "OptionPrice",
+  functionName: "blackScholesPrice",
+  args: [underlying, strike, timeToExpiration, volatility, riskFreeRate, isCall],
+});
+```
+
+### Writing Data
+```typescript
+const { writeContractAsync: writeOpHookAsync } = useScaffoldWriteContract({
+  contractName: "OpHook"
+});
+
+await writeOpHookAsync({
+  functionName: "addLiquidity",
+  args: [permit, key, liquidityParams, hookData],
+});
+```
+
+## 📚 Documentation
+
+- [Scaffold-ETH 2 Documentation](https://docs.scaffoldeth.io)
+- [Uniswap V4 Documentation](https://docs.uniswap.org/)
+- [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts/)
+
+## 🤝 Contributing
+
+We welcome contributions to OpSwap! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENCE) file for details.
+
+## ⚠️ Disclaimer
+
+This software is for educational and development purposes. Use at your own risk. The contracts have not been audited and should not be used in production without proper security review.
