@@ -17,7 +17,27 @@ import {OptionPrice} from "./OptionPrice.sol";
 import {IOptionToken} from "./IOptionToken.sol";
 import {IPermit2} from "./IPermit2.sol";
 import {ISignatureTransfer} from "./ISignatureTransfer.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 
+uint160 constant SQRT_PRICE_X96 = 1<<96;
+uint24 constant TICK_SPACING = 1;
+
+struct OptionPool {
+    address underlying;
+    address token0;
+    address token1;
+    uint24 fee;
+    int24 tickSpacing;
+    uint160 sqrtPriceX96;
+    address optionToken;
+    uint256 expiration;
+}
+
+struct CurrentOptionPrice {
+    address underlying;
+    address optionToken;
+    uint256 price;
+}
 
 contract OpHook is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -28,22 +48,24 @@ contract OpHook is BaseHook {
 
     mapping(address => bool) public whitelist;
 
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
+    mapping(address => OptionPool[]) public pools;
+
+    constructor(IPoolManager _poolManager, address permit2) BaseHook(_poolManager) {
         optionPrice = new OptionPrice();
-        PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+        PERMIT2 = IPermit2(permit2);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
         return Hooks.Permissions({
             beforeInitialize: false,
             afterInitialize: false,
-            beforeAddLiquidity: false,
+            beforeAddLiquidity: true,
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
             beforeSwap: true,
             afterSwap: false,
-            beforeDonate: false,
+            beforeDonate: true,
             afterDonate: false,
             beforeSwapReturnDelta: false,
             afterSwapReturnDelta: false,
@@ -55,8 +77,7 @@ contract OpHook is BaseHook {
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         override
-        returns (bytes4, BeforeSwapDelta, uint24)
-    {
+        returns (bytes4, BeforeSwapDelta, uint24){
 
         address token0 = Currency.unwrap(key.currency0);
         address token1 = Currency.unwrap(key.currency1);
@@ -96,6 +117,22 @@ contract OpHook is BaseHook {
         }
     }
 
+    function _beforeAddLiquidity(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+        internal
+        pure
+        
+        returns (bytes4, BeforeSwapDelta, uint24){
+            revert("Cannot Add Liquidity to This Pool ");
+        }
+
+    function _beforeDonate(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+        internal
+        pure
+        returns (bytes4, BeforeSwapDelta, uint24){
+            revert("Cannot Donate to This Pool");
+        }
+
+
     function addLiquidity(
         IPermit2.PermitTransferFrom calldata permit, 
         IPermit2.SignatureTransferDetails calldata transferDetails, 
@@ -106,6 +143,7 @@ contract OpHook is BaseHook {
             // needs to be converted to something like a uniswap NFT token
         
         PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
+        poolManager.
 
     }
 
@@ -124,6 +162,69 @@ contract OpHook is BaseHook {
 
     function removeWhitelistToken(address token) public {
         whitelist[token] = false;
+    }
+
+    function getPools(address underlying) public view returns (OptionPool[] memory) {
+        return pools[underlying];
+    }
+
+    function getPrices(address underlying) public view returns (uint256[] memory) {
+        OptionPool[] memory pools_ = pools[underlying];
+        uint256[] memory prices = new uint256[](pools_.length);
+        for (uint256 i = 0; i < pools_.length; i++) {
+            OptionPool memory pool = pools_[i];
+            prices[i] = optionPrice.getPrice(pool.token0, false);
+        }
+        return prices;
+    }
+
+    function _getOptionPrice(address optionToken, bool inverse) internal view returns (uint256) {
+        return optionPrice.getPrice(optionToken, inverse);
+    }
+
+    function getOptionPrice(address optionToken) public view returns (CurrentOptionPrice memory) {
+        IOptionToken optionToken_ = IOptionToken(optionToken);
+        uint256 price = _getOptionPrice(optionToken, false);
+        return CurrentOptionPrice({
+            underlying: address(optionToken_.collateral()),
+            optionToken: optionToken,
+            price: price
+        });
+    }
+    function initPool(
+        address optionToken,
+        address cash,
+        uint24 fee
+    ) public {
+
+        IOptionToken optionToken_ = IOptionToken(optionToken);
+        uint256 expiration = optionToken_.expirationDate();
+        address token0 = cash < optionToken ? cash : optionToken;
+        address token1 = cash < optionToken ? optionToken : cash;
+        address underlying = address(optionToken_.collateral());
+
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
+            fee: fee,
+            tickSpacing: TICK_SPACING,
+            hooks: IHooks(address(this))
+        });
+        poolManager.initialize(poolKey, SQRT_PRICE_X96);
+
+        OptionPool memory pool = OptionPool({
+            underlying: underlying,
+            token0: token0,
+            token1: token1,
+            fee: fee,
+            tickSpacing: TICK_SPACING,
+            sqrtPriceX96: SQRT_PRICE_X96,  //todo: verify this
+            optionToken: optionToken,
+            expiration: expiration
+        });
+        pools[underlying].push(pool);
+        
+
     }
 
 }
