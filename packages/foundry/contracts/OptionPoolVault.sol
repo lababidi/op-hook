@@ -37,82 +37,17 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     event OptionPoolUpdated(address indexed oldPool, address indexed newPool);
     event EmergencyWithdraw(address indexed owner, uint256 amount);
 
-    // ============ State Variables ============
-    
-    /// @notice Underlying token address
-    uint8 public underlyingDecimals;
-    
-    /// @notice Fee recipient address
-    address public feeRecipient;
-    
-    /// @notice Fee rate in basis points (1 = 0.01%)
-    uint256 public feeRate;
-    
-    /// @notice Maximum fee rate in basis points
-    uint256 public constant MAX_FEE_RATE = 1000; // 10%
-    
-    /// @notice Option pool contract address
-    address public optionPool;
-    
-    /// @notice Minimum deposit amount
-    uint256 public minDeposit;
-    
-    /// @notice Maximum vault capacity
-    uint256 public maxCapacity;
-    
-    /// @notice Whether deposits are paused
-    bool public depositsPaused;
-    
-    /// @notice Whether withdrawals are paused
-    bool public withdrawalsPaused;
 
-    // ============ Modifiers ============
-    
-    modifier whenDepositsNotPaused() {
-        require(!depositsPaused, "OptionPoolVault: deposits paused");
-        _;
-    }
-    
-    modifier whenWithdrawalsNotPaused() {
-        require(!withdrawalsPaused, "OptionPoolVault: withdrawals paused");
-        _;
-    }
-    
-    modifier validFeeRate(uint256 _feeRate) {
-        require(_feeRate <= MAX_FEE_RATE, "OptionPoolVault: fee rate too high");
-        _;
-    }
-
-    // ============ Constructor ============
-    
-    /**
-     * @dev Constructor for the OptionPoolVault
-     * @param _underlying The underlying ERC20 token
-     * @param _name The name of the vault token
-     * @param _symbol The symbol of the vault token
-     * @param _feeRecipient The address to receive fees
-     * @param _feeRate The fee rate in basis points
-     * @param _optionPool The option pool contract address
-     */
     constructor(
         IERC20 _underlying,
         string memory _name,
-        string memory _symbol,
-        address _feeRecipient,
-        uint256 _feeRate,
-        address _optionPool
-    ) ERC4626(_underlying) ERC20(_name, _symbol) Ownable(msg.sender) validFeeRate(_feeRate) {
-        require(_feeRecipient != address(0), "OptionPoolVault: invalid fee recipient");
-        require(_optionPool != address(0), "OptionPoolVault: invalid option pool");
+        string memory _symbol
+        // address _feeRecipient,
+        // uint256 _feeRate,
+        // address _optionPool
+    ) ERC4626(_underlying) ERC20(_name, _symbol) Ownable(msg.sender) {
         
-        feeRecipient = _feeRecipient;
-        feeRate = _feeRate;
-        optionPool = _optionPool;
         
-        // Set reasonable defaults based on underlying token decimals
-        underlyingDecimals = IERC20Metadata(address(_underlying)).decimals();
-        minDeposit = 10 ** underlyingDecimals; // 1 token minimum
-        maxCapacity = type(uint256).max; // No limit by default
     }
 
     // ============ ERC4626 Overrides ============
@@ -124,12 +59,9 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         public 
         override 
         whenNotPaused 
-        whenDepositsNotPaused 
         nonReentrant 
         returns (uint256 shares) 
     {
-        require(assets >= minDeposit, "OptionPoolVault: deposit too small");
-        require(totalAssets() + assets <= maxCapacity, "OptionPoolVault: exceeds capacity");
         
         shares = super.deposit(assets, receiver);
         
@@ -146,7 +78,6 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         public 
         override 
         whenNotPaused 
-        whenDepositsNotPaused 
         nonReentrant 
         returns (uint256 assets) 
     {
@@ -167,7 +98,6 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         public 
         override 
         whenNotPaused 
-        whenWithdrawalsNotPaused 
         nonReentrant 
         returns (uint256 shares) 
     {
@@ -186,7 +116,6 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         public 
         override 
         whenNotPaused 
-        whenWithdrawalsNotPaused 
         nonReentrant 
         returns (uint256 assets) 
     {
@@ -196,141 +125,6 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         _afterRedeem(assets, shares, receiver, owner);
         
         return assets;
-    }
-
-    // ============ Fee Management ============
-    
-    /**
-     * @dev Calculate and collect fees on deposit/mint
-     * @param assets The amount of assets being deposited
-     * @return feeAmount The amount of fees collected
-     */
-    function _calculateAndCollectFees(uint256 assets) internal returns (uint256 feeAmount) {
-        if (feeRate == 0) return 0;
-        
-        feeAmount = assets * feeRate / 10000;
-        if (feeAmount > 0) {
-            // Transfer fees to fee recipient
-            IERC20(asset()).safeTransfer(feeRecipient, feeAmount);
-            emit FeeCollected(msg.sender, feeAmount);
-        }
-        
-        return feeAmount;
-    }
-    
-    /**
-     * @dev Update fee recipient (owner only)
-     * @param _newFeeRecipient The new fee recipient address
-     */
-    function updateFeeRecipient(address _newFeeRecipient) external onlyOwner {
-        require(_newFeeRecipient != address(0), "OptionPoolVault: invalid fee recipient");
-        address oldRecipient = feeRecipient;
-        feeRecipient = _newFeeRecipient;
-        emit FeeRecipientUpdated(oldRecipient, _newFeeRecipient);
-    }
-    
-    /**
-     * @dev Update fee rate (owner only)
-     * @param _newFeeRate The new fee rate in basis points
-     */
-    function updateFeeRate(uint256 _newFeeRate) external onlyOwner validFeeRate(_newFeeRate) {
-        uint256 oldRate = feeRate;
-        feeRate = _newFeeRate;
-        emit FeeRateUpdated(oldRate, _newFeeRate);
-    }
-
-    // ============ Vault Configuration ============
-    
-    /**
-     * @dev Update option pool address (owner only)
-     * @param _newOptionPool The new option pool address
-     */
-    function updateOptionPool(address _newOptionPool) external onlyOwner {
-        require(_newOptionPool != address(0), "OptionPoolVault: invalid option pool");
-        address oldPool = optionPool;
-        optionPool = _newOptionPool;
-        emit OptionPoolUpdated(oldPool, _newOptionPool);
-    }
-    
-    /**
-     * @dev Update minimum deposit amount (owner only)
-     * @param _newMinDeposit The new minimum deposit amount
-     */
-    function updateMinDeposit(uint256 _newMinDeposit) external onlyOwner {
-        minDeposit = _newMinDeposit;
-    }
-    
-    /**
-     * @dev Update maximum vault capacity (owner only)
-     * @param _newMaxCapacity The new maximum capacity
-     */
-    function updateMaxCapacity(uint256 _newMaxCapacity) external onlyOwner {
-        maxCapacity = _newMaxCapacity;
-    }
-
-    // ============ Pause Functionality ============
-    
-    /**
-     * @dev Pause deposits (owner only)
-     */
-    function pauseDeposits() external onlyOwner {
-        depositsPaused = true;
-    }
-    
-    /**
-     * @dev Unpause deposits (owner only)
-     */
-    function unpauseDeposits() external onlyOwner {
-        depositsPaused = false;
-    }
-    
-    /**
-     * @dev Pause withdrawals (owner only)
-     */
-    function pauseWithdrawals() external onlyOwner {
-        withdrawalsPaused = true;
-    }
-    
-    /**
-     * @dev Unpause withdrawals (owner only)
-     */
-    function unpauseWithdrawals() external onlyOwner {
-        withdrawalsPaused = false;
-    }
-    
-    /**
-     * @dev Pause all vault operations (owner only)
-     */
-    function pause() external onlyOwner {
-        _pause();
-    }
-    
-    /**
-     * @dev Unpause all vault operations (owner only)
-     */
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
-    // ============ Emergency Functions ============
-    
-    /**
-     * @dev Emergency withdraw for owner (bypasses normal withdrawal logic)
-     * @param amount The amount to withdraw
-     */
-    function emergencyWithdraw(uint256 amount) external onlyOwner {
-        require(amount <= totalAssets(), "OptionPoolVault: insufficient assets");
-        IERC20(asset()).safeTransfer(owner(), amount);
-        emit EmergencyWithdraw(owner(), amount);
-    }
-    
-    /**
-     * @dev Emergency pause all operations (owner only)
-     */
-    function emergencyPause() external onlyOwner {
-        _pause();
-        depositsPaused = true;
-        withdrawalsPaused = true;
     }
 
     // ============ View Functions ============
@@ -351,17 +145,9 @@ contract OptionPoolVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         totalAssets_ = totalAssets();
         totalShares_ = totalSupply();
         exchangeRate_ = totalShares_ > 0 ? totalAssets_ * 1e18 / totalShares_ : 1e18;
-        utilizationRate_ = maxCapacity > 0 ? totalAssets_ * 10000 / maxCapacity : 0;
+        utilizationRate_ =  0;
     }
-    
-    /**
-     * @dev Check if vault is at capacity
-     * @return True if vault is at or near capacity
-     */
-    function isAtCapacity() external view returns (bool) {
-        return totalAssets() >= maxCapacity;
-    }
-    
+
     // ============ Internal Hooks ============
     
     /**
