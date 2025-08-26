@@ -112,7 +112,7 @@ contract OptionPool {
         }
     }
 
-    function collect(bytes32 key, address to, uint128 amount0Req) external returns (uint128 amt0){
+    function collect(bytes32 key, uint128 amount0Req) external returns (uint128 amt0){
         _updatePosition(key);
         Position storage p = positions[key];
         amt0 = amount0Req < p.claimable0 ? amount0Req : p.claimable0;

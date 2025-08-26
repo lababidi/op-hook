@@ -217,13 +217,13 @@ contract OptionPoolVaultSecure is ERC4626, AccessControl, ReentrancyGuard, Pausa
         
         // Check asset compatibility
         if (assetCompatibilityChecks) {
-            _checkAssetCompatibility(assets);
+            _checkAssetCompatibility();
         }
         
         shares = super.deposit(assets, receiver);
         
         // Additional logic for option pool integration can be added here
-        _afterDeposit(assets, shares, receiver);
+        // _afterDeposit(assets, shares, receiver);
         
         return shares;
     }
@@ -255,11 +255,11 @@ contract OptionPoolVaultSecure is ERC4626, AccessControl, ReentrancyGuard, Pausa
         
         // Check asset compatibility
         if (assetCompatibilityChecks) {
-            _checkAssetCompatibility(assets);
+            _checkAssetCompatibility();
         }
         
         // Additional logic for option pool integration can be added here
-        _afterMint(assets, shares, receiver);
+        // _afterMint(assets, shares, receiver);
         
         return assets;
     }
@@ -385,7 +385,7 @@ contract OptionPoolVaultSecure is ERC4626, AccessControl, ReentrancyGuard, Pausa
      */
     function updateDepositLimits(uint256 _maxDepositPerTx, uint256 _maxDepositPerBlock) external onlyOperator {
         uint256 oldTxLimit = maxDepositPerTx;
-        uint256 oldBlockLimit = maxDepositPerBlock;
+        // uint256 oldBlockLimit = maxDepositPerBlock;
         
         maxDepositPerTx = _maxDepositPerTx;
         maxDepositPerBlock = _maxDepositPerBlock;
@@ -398,7 +398,7 @@ contract OptionPoolVaultSecure is ERC4626, AccessControl, ReentrancyGuard, Pausa
      */
     function updateWithdrawalLimits(uint256 _maxWithdrawalPerTx, uint256 _maxWithdrawalPerBlock) external onlyOperator {
         uint256 oldTxLimit = maxWithdrawalPerTx;
-        uint256 oldBlockLimit = maxWithdrawalPerBlock;
+        // uint256 oldBlockLimit = maxWithdrawalPerBlock;
         
         maxWithdrawalPerTx = _maxWithdrawalPerTx;
         maxWithdrawalPerBlock = _maxWithdrawalPerBlock;
@@ -551,7 +551,7 @@ contract OptionPoolVaultSecure is ERC4626, AccessControl, ReentrancyGuard, Pausa
     /**
      * @dev Check asset compatibility (basic checks)
      */
-    function _checkAssetCompatibility(uint256 amount) internal view {
+    function _checkAssetCompatibility() internal view {
         address assetAddress = address(asset());
         
         // Check if asset is allowed
@@ -569,21 +569,21 @@ contract OptionPoolVaultSecure is ERC4626, AccessControl, ReentrancyGuard, Pausa
 
     // ============ Internal Hooks ============
     
-    /**
-     * @dev Hook called after deposit
-     */
-    function _afterDeposit(uint256 assets, uint256 shares, address receiver) internal virtual {
-        // Collect fees in shares
-        _collectFeesInShares(shares);
-    }
+    // /**
+    //  * @dev Hook called after deposit
+    //  */
+    // function _afterDeposit(uint256 assets, uint256 shares, address receiver) internal virtual {
+    //     // Collect fees in shares
+    //     _collectFeesInShares(shares);
+    // }
     
-    /**
-     * @dev Hook called after mint
-     */
-    function _afterMint(uint256 assets, uint256 shares, address receiver) internal virtual {
-        // Collect fees in shares
-        _collectFeesInShares(shares);
-    }
+    // /**
+    //  * @dev Hook called after mint
+    //  */
+    // function _afterMint(uint256 assets, uint256 shares, address receiver) internal virtual {
+    //     // Collect fees in shares
+    //     _collectFeesInShares(shares);
+    // }
     
     /**
      * @dev Hook called after withdraw

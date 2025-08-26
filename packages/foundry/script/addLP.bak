@@ -9,15 +9,12 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-// import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-import {IUniswapV4Router04} from "@uniswap/v4-periphery/src/interfaces/IUniswapV4Router04.sol";
+import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
+import {LiquidityAmounts} from "lib/v4-core/test/utils/LiquidityAmounts.sol";
+import {TickMath} from "lib/v4-core/src/libraries/TickMath.sol";
+import {StateLibrary} from "lib/v4-core/src/libraries/StateLibrary.sol";
+import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager.sol";
 
-// import {BaseScript} from "./base/BaseScript.sol";
-// import {LiquidityHelpers} from "./base/LiquidityHelpers.sol";
 
 contract AddLiquidityScript is ScaffoldETHDeploy  {
     using CurrencyLibrary for Currency;
@@ -39,9 +36,11 @@ contract AddLiquidityScript is ScaffoldETHDeploy  {
     int24 tickLower;
     int24 tickUpper;
 
+    // Hardcoded addresses for Sepolia testnet
+    address constant POSITION_MANAGER_ADDRESS = 0x8c8Bf5DEa2801be144796E4DeA1Ab7E087f90BCd;
+    address constant V4_SWAP_ROUTER_ADDRESS = 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E;
+
     function run() external {
-
-
         address TOKEN0_ADDRESS = address(0x083dC0B99F583B5F6eD9c86612B3CcB8e8845b4A);
         address TOKEN1_ADDRESS = address(0x6550c8d40f06c8A5B003A0622538980Fc4AF7492);
         address HOOK_ADDRESS = address(0xCA2A914BA5fdFaaD2989CC21A93F172701078080);
@@ -59,12 +58,10 @@ contract AddLiquidityScript is ScaffoldETHDeploy  {
         });
         bytes memory hookData = new bytes(0);
 
-
         IPoolManager poolManager = IPoolManager(POOL_MANAGER_ADDRESS);
-        IPositionManager positionManager = IPositionManager(payable(AddressConstants.getPositionManagerAddress(block.chainid)));
-        IUniswapV4Router04 swapRouter = IUniswapV4Router04(payable(AddressConstants.getV4SwapRouterAddress(block.chainid)));
+        IPositionManager positionManager = IPositionManager(payable(POSITION_MANAGER_ADDRESS));
 
-        deployerAddress = getDeployer();
+        address deployerAddress = getDeployer();
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
 
@@ -107,5 +104,48 @@ contract AddLiquidityScript is ScaffoldETHDeploy  {
         // Add liquidity to existing pool
         positionManager.multicall{value: valueToPass}(params);
         vm.stopBroadcast();
+    }
+
+    function _mintLiquidityParams(
+        PoolKey memory poolKey,
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        address recipient,
+        bytes memory hookData
+    ) internal pure returns (bytes memory actions, bytes[] memory mintParams) {
+        // Create actions array with MINT_POSITION action
+        actions = new bytes(1);
+        actions[0] = bytes1(uint8(Actions.MINT_POSITION));
+
+        // Create params array with mint parameters
+        mintParams = new bytes[](1);
+        mintParams[0] = abi.encode(
+            poolKey,
+            tickLower,
+            tickUpper,
+            liquidity,
+            uint128(amount0Max),
+            uint128(amount1Max),
+            recipient,
+            hookData
+        );
+    }
+
+    function tokenApprovals() internal {
+        // Approve tokens for the position manager
+        IERC20 token0 = IERC20(address(0x083dC0B99F583B5F6eD9c86612B3CcB8e8845b4A));
+        IERC20 token1 = IERC20(address(0x6550c8d40f06c8A5B003A0622538980Fc4AF7492));
+        
+        token0.approve(POSITION_MANAGER_ADDRESS, type(uint256).max);
+        token1.approve(POSITION_MANAGER_ADDRESS, type(uint256).max);
+    }
+
+    function getDeployer() internal returns (address) {
+        address[] memory wallets = vm.getWallets();
+        require(wallets.length > 0, "No wallets found");
+        return wallets[0];
     }
 }
