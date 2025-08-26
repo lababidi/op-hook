@@ -4,28 +4,26 @@ pragma solidity ^0.8.26;
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IPoolManager, SwapParams, ModifyLiquidityParams} from "v4-core/src/interfaces/IPoolManager.sol";
+import {IPoolManager, SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {OptionPrice} from "./OptionPrice.sol";
 
 import {IOptionToken} from "./IOptionToken.sol";
 import {IPermit2} from "./IPermit2.sol";
-import {ISignatureTransfer} from "./ISignatureTransfer.sol";
+
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 
 uint160 constant SQRT_PRICE_X96 = 1<<96;
@@ -64,12 +62,13 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     event EmergencyWithdraw(address indexed owner, uint256 amount);
 
     OptionPrice public  optionPrice;
+    IERC20 public underlying;
 
     IPermit2 public immutable PERMIT2;
 
     mapping(address => bool) public whitelist;
 
-    mapping(address => OptionPool[]) public pools;
+    OptionPool[] public pools;
 
     constructor(IPoolManager _poolManager, address permit2, IERC20 _underlying, string memory _name, string memory _symbol) 
     BaseHook(_poolManager) 
@@ -78,6 +77,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     Ownable(msg.sender) {
         optionPrice = new OptionPrice();
         PERMIT2 = IPermit2(permit2);
+        underlying = _underlying;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -158,46 +158,39 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         }
 
 
-    function addLiquidity(
-        IPermit2.PermitTransferFrom calldata permit, 
-        IPermit2.SignatureTransferDetails calldata transferDetails, 
-        address owner, 
-        bytes calldata signature
-        ) public {
-            // NOTE: this is a hack to add liquidity to the pool using the underlying asset
-            // needs to be converted to something like a uniswap NFT token
+    // function addLiquidity(
+    //     IPermit2.PermitTransferFrom calldata permit, 
+    //     IPermit2.SignatureTransferDetails calldata transferDetails, 
+    //     address owner, 
+    //     bytes calldata signature
+    //     ) public {
+    //         // NOTE: this is a hack to add liquidity to the pool using the underlying asset
+    //         // needs to be converted to something like a uniswap NFT token
         
-        PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
+    //     PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
 
 
-    }
+    // }
 
-    function removeLiquidity(
-        address token,
-        uint256 amount
-        ) public {
-        // NOTE: Again this is a hack, and should be a burn type of method
+    // function removeLiquidity(
+    //     address token,
+    //     uint256 amount
+    //     ) public {
+    //     // NOTE: Again this is a hack, and should be a burn type of method
         
-        IERC20(token).transfer(msg.sender, amount);
+    //     IERC20(token).transfer(msg.sender, amount);
+    // }
+
+
+
+    function getPools() public view returns (OptionPool[] memory) {
+        return pools;
     }
 
-    function whitelistToken(address token) public {
-        whitelist[token] = true;
-    }
-
-    function removeWhitelistToken(address token) public {
-        whitelist[token] = false;
-    }
-
-    function getPools(address underlying) public view returns (OptionPool[] memory) {
-        return pools[underlying];
-    }
-
-    function getPrices(address underlying) public view returns (uint256[] memory) {
-        OptionPool[] memory pools_ = pools[underlying];
-        uint256[] memory prices = new uint256[](pools_.length);
-        for (uint256 i = 0; i < pools_.length; i++) {
-            OptionPool memory pool = pools_[i];
+    function getPrices() public view returns (uint256[] memory) {
+        uint256[] memory prices = new uint256[](pools.length);
+        for (uint256 i = 0; i < pools.length; i++) {
+            OptionPool memory pool = pools[i];
             prices[i] = optionPrice.getPrice(pool.token0, false);
         }
         return prices;
@@ -208,10 +201,9 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     }
 
     function getOptionPrice(address optionToken) public view returns (CurrentOptionPrice memory) {
-        IOptionToken optionToken_ = IOptionToken(optionToken);
         uint256 price = _getOptionPrice(optionToken, false);
         return CurrentOptionPrice({
-            underlying: address(optionToken_.collateral()),
+            underlying: address(underlying),
             optionToken: optionToken,
             price: price
         });
@@ -226,7 +218,6 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         uint256 expiration = optionToken_.expirationDate();
         address token0 = cash < optionToken ? cash : optionToken;
         address token1 = cash < optionToken ? optionToken : cash;
-        address underlying = address(optionToken_.collateral());
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(token0),
@@ -238,7 +229,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         poolManager.initialize(poolKey, SQRT_PRICE_X96);
 
         OptionPool memory pool = OptionPool({
-            underlying: underlying,
+            underlying: address(underlying),
             token0: token0,
             token1: token1,
             fee: fee,
@@ -247,7 +238,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             optionToken: optionToken,
             expiration: expiration
         });
-        pools[underlying].push(pool);
+        pools.push(pool);
         
 
     }

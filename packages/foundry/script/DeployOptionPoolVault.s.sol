@@ -26,30 +26,6 @@ contract DeployOptionPoolVault is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy mock underlying token (replace with actual token in production)
-        MockERC20 underlying = new MockERC20("Test Token", "TEST");
-
-        // Deploy mock option pool (replace with actual option pool in production)
-        MockOptionPool optionPool = new MockOptionPool(address(0));
-
-        // Deploy the vault
-        OptionPoolVault vault = new OptionPoolVault(
-            underlying,
-            "Option Pool Vault",
-            "opVAULT",
-            msg.sender, // fee recipient
-            100, // 1% fee rate
-            address(optionPool)
-        );
-
-        // Update option pool to point to vault
-        optionPool = new MockOptionPool(address(vault));
-
-        // Update vault with new option pool address
-        vault.updateOptionPool(address(optionPool));
-
-        // Fund vault with initial liquidity
-        underlying.transfer(address(vault), 10000 * 10**underlying.decimals());
 
         vm.stopBroadcast();
     }

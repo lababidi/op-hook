@@ -33,6 +33,8 @@ contract DeployYourContract is ScaffoldETHDeploy {
         // In production, you would deploy or use an existing PoolManager
         address testnetPoolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
         address poolManager = address(testnetPoolManager);
+        address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+        address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
         bytes memory constructorArgs = abi.encode(address(poolManager));
 
@@ -48,7 +50,7 @@ contract DeployYourContract is ScaffoldETHDeploy {
         console.log("Using salt:", uint256(salt));
 
         // Deploy the hook using CREATE2
-        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)));
+        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, IERC20(weth), "WethOptionPoolVault", "ETHCC");
         require(address(hook) == hookAddress, "OpHook: hook address mismatch");
 
         console.log("OpHook deployed successfully at:", address(hook));
