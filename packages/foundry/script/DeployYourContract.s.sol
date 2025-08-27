@@ -39,9 +39,12 @@ contract DeployYourContract is ScaffoldETHDeploy {
         bytes memory constructorArgs = abi.encode(address(poolManager));
 
         // Mine a salt that will produce a hook address with the correct flags
+        // The OpHook contract declares beforeAddLiquidity: true, beforeSwap: true, and beforeDonate: true
+        uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG;
+        
         (address hookAddress, bytes32 salt) = HookMiner.find(
             CREATE2_DEPLOYER,
-            uint160(Hooks.BEFORE_SWAP_FLAG),
+            flags,
             type(OpHook).creationCode,
             constructorArgs
         );
@@ -52,6 +55,9 @@ contract DeployYourContract is ScaffoldETHDeploy {
         // Deploy the hook using CREATE2
         OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, IERC20(weth), "WethOptionPoolVault", "ETHCC");
         require(address(hook) == hookAddress, "OpHook: hook address mismatch");
+        
+        // Log pools information
+        console.log("Number of pools:", hook.getPools().length);
 
         console.log("OpHook deployed successfully at:", address(hook));
     }
