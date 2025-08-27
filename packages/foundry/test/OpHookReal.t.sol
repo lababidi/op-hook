@@ -57,26 +57,28 @@ contract OpHookRealTest is Test {
             console.log("Using mainnet contracts");
             wethAddress = MAINNET_WETH;
             usdcAddress = MAINNET_USDC;
+            poolManager = PoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
         } else if (block.chainid == 31337 && block.number > 1) {
             // Forked chain (yarn fork) - has real mainnet state
             console.log("Using forked mainnet (yarn fork)");
             wethAddress = MAINNET_WETH;
             usdcAddress = MAINNET_USDC;
+            poolManager = PoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
         } else if (block.chainid == 31337) {
             // Local clean chain (yarn chain) - would need deployed tokens
             console.log("Using local clean chain (yarn chain) - set your deployed token addresses here");
             wethAddress = address(0);
             usdcAddress = address(0);
+            poolManager = new PoolManager(address(this));
         } else {
             // Other networks
             console.log("Unsupported network for real token testing");
             wethAddress = address(0);
             usdcAddress = address(0);
+            poolManager = new PoolManager(address(this));
         }
         
         // Deploy PoolManager
-        // poolManager = new PoolManager(address(this));
-        poolManager = PoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
         console.log("PoolManager deployed at:", address(poolManager));
         
         if (wethAddress != address(0) && usdcAddress != address(0)) {
@@ -107,6 +109,11 @@ contract OpHookRealTest is Test {
                 "Real WETH Option Vault",
                 "rWETH-OPT"
             );
+
+            MockOptionToken option = new MockOptionToken("OPT", "OPT", wethAddress, usdcAddress);
+
+            opHook.initPool(address(option), usdcAddress, 0);
+            
             
             console.log("OpHook deployed at:", address(opHook));
             console.log("Intended address:", hookAddress);
