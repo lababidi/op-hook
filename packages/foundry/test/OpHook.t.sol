@@ -13,6 +13,32 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
 
+
+import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
+
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {IPoolManager, SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
+
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
+import {OptionPrice, PriceMath, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
+
+import {IOptionToken} from "../contracts/IOptionToken.sol";
+import {IPermit2} from "../contracts/IPermit2.sol";
+
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         _mint(msg.sender, 1000000 * 10**18); // Mint 1M tokens to deployer
@@ -26,6 +52,7 @@ contract MockERC20 is ERC20 {
 
 contract OpHookTest is Test {
     // Real Mainnet addresses for testing
+    address constant WETH_UNI_POOL = address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
     address constant MOCK_POOL_MANAGER = address(0x000000000004444c5dc75cB358380D2e3dE08A90);
     address constant MOCK_PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -51,7 +78,8 @@ contract OpHookTest is Test {
             MOCK_PERMIT2,
             IERC20(address(weth)),
             "WethOptionPoolVault",
-            "ETHCC"
+            "ETHCC",
+            WETH_UNI_POOL
         );
 
         (address hookAddress, bytes32 salt) = HookMiner.find(
@@ -66,7 +94,8 @@ contract OpHookTest is Test {
             MOCK_PERMIT2,
             weth,
             "WethOptionPoolVault",
-            "ETHCC"
+            "ETHCC",
+            WETH_UNI_POOL
         );
         console.log("Address", hookAddress);
         console.log("Address", address(opHook));
@@ -207,6 +236,10 @@ contract OpHookTest is Test {
         assertEq(exchangeRate_, 1e18, "Exchange rate should remain 1e18");
     }
 
+    function testGetUnderlyingPrice() public view {
+        uint256 price = PriceMath.getPrice(IUniswapV3Pool(opHook.pricePool()), true);
+        console.log("price", price);
+    }
     
     function testGetOptionPrice() public view {
         // Test getOptionPrice function with mock option token

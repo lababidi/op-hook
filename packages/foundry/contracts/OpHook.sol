@@ -63,22 +63,26 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
 
     OptionPrice public optionPrice;
     IERC20 public underlying;
-    address pricePool;
+    address public pricePool;
+    address public cash;
+    bool public zeroOrOne;
 
     IPermit2 public immutable PERMIT2;
 
     mapping(address => bool) public options;
     OptionPool[] public pools;
 
-    constructor(IPoolManager _poolManager, address permit2, IERC20 _underlying, string memory _name, string memory _symbol) 
+    constructor(IPoolManager _poolManager, address permit2, IERC20 _underlying, string memory _name, string memory _symbol, address _pricePool) 
     BaseHook(_poolManager) 
     ERC4626(_underlying) 
     ERC20(_name, _symbol) 
     Ownable(msg.sender) {
-        optionPrice = new OptionPrice();
+        optionPrice = new OptionPrice(_pricePool);
         PERMIT2 = IPermit2(permit2);
         underlying = _underlying;
-        pricePool = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
+        pricePool = _pricePool;
+        cash = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        zeroOrOne = address(underlying) > address(cash);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -121,7 +125,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         int128 amount_ = int128(int256(amount));
         if (params.zeroForOne) {
             
-            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false);
+            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
             uint256 collateralAmount = (amount * price) / 1e18;
             int128 collateralAmount_ = int128(int256(collateralAmount));
             require(collateralAmount <= option.balanceOf(address(this)), "Insufficient optionToken balance");
@@ -132,7 +136,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             poolManager.burn(address(this), key.currency1.toId(), collateralAmount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
-            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false);
+            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
             uint256 tokenBAmount = Math.mulDiv(amount, price, 1e18);
             int128 tokenBAmount_ = int128(int256(tokenBAmount));
             BeforeSwapDelta delta = toBeforeSwapDelta(tokenBAmount_, -amount_);
@@ -170,18 +174,19 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < pools.length; i++) {
             OptionPool memory pool = pools[i];
             IOptionToken option = IOptionToken(pool.optionToken);
-            prices[i] = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false);
+            prices[i] = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
         }
         return prices;
     }
 
     function _getOptionPrice(address optionToken, bool inverse) internal view returns (uint256) {
         IOptionToken option = IOptionToken(optionToken);
-        return optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), inverse);
+        return optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), inverse, zeroOrOne);
     }
 
     function getOptionPrice(address optionToken) public view returns (CurrentOptionPrice memory) {
-        uint256 price = _getOptionPrice(optionToken, false);
+        IOptionToken option = IOptionToken(optionToken);
+        uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
         return CurrentOptionPrice({
             underlying: address(underlying),
             optionToken: optionToken,
@@ -190,14 +195,14 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     }
     function initPool(
         address optionToken,
-        address cash,
+        address cash_,
         uint24 fee
     ) public {
 
         IOptionToken optionToken_ = IOptionToken(optionToken);
         uint256 expiration = optionToken_.expirationDate();
-        address token0 = cash < optionToken ? cash : optionToken;
-        address token1 = cash < optionToken ? optionToken : cash;
+        address token0 = cash_ < optionToken ? cash_ : optionToken;
+        address token1 = cash_ < optionToken ? optionToken : cash_;
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(token0),

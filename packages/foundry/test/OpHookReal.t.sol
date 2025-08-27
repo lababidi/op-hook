@@ -39,6 +39,7 @@ contract OpHookRealTest is Test {
     address constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3; // Universal Permit2
     address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
     
     // For local chain, you would set these to your deployed token addresses
     address public wethAddress;
@@ -107,7 +108,8 @@ contract OpHookRealTest is Test {
                 PERMIT2_ADDRESS,
                 weth,
                 "Real WETH Option Vault",
-                "rWETH-OPT"
+                "rWETH-OPT",
+                WETH_UNI_POOL
             );
 
             MockOptionToken option = new MockOptionToken("OPT", "OPT", wethAddress, usdcAddress);

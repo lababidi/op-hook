@@ -32,6 +32,7 @@ contract OpHookForkTest is Test {
     
     // We'll deploy our own contracts for proper testing
     address constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3; // Can use real Permit2 since it's just utility
+    address constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
     
     function setUp() public {
         // Deploy a real PoolManager for testing
@@ -63,7 +64,8 @@ contract OpHookForkTest is Test {
             PERMIT2_ADDRESS,
             IERC20(address(weth)),
             "WethOptionPoolVault",
-            "ETHCC"
+            "ETHCC",
+            WETH_UNI_POOL
         );
         
         console.log("OpHook expected at:", address(hookAddress));

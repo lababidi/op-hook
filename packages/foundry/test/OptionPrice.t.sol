@@ -5,10 +5,11 @@ import {Test, console} from "forge-std/Test.sol";
 import {OptionPrice} from "../contracts/OptionPrice.sol";
 
 contract OptionPriceTest is Test {
+    address constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
     OptionPrice public optionPrice;
 
     function setUp() public {
-        optionPrice = new OptionPrice();
+        optionPrice = new OptionPrice(WETH_UNI_POOL);
     }
 
     // expNeg function tests

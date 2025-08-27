@@ -91,13 +91,14 @@ contract EndToEndTest is Test {
     PoolSwapTest public swapRouter;
 
     address constant CREATE2_DEPLOYER = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
+    address constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
 
     function setUp() public {
         // For testing without forking mainnet, we'll use a local environment
         // In production, you would use: vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 19000000);
         
         // Deploy the option price contract for testing
-        optionPrice = new OptionPrice();
+        optionPrice = new OptionPrice(WETH_UNI_POOL);
         // fork mainnet here
         // vm.createSelectFork("https://rpc.flashbots.net");
         vm.createSelectFork("https://ethereum-sepolia-rpc.publicnode.com");
@@ -152,7 +153,7 @@ contract EndToEndTest is Test {
 
         // Deploy the hook using CREATE2
         vm.startBroadcast();
-        OpHook opHook = new OpHook{salt: salt}(poolManager, MAINNET_PERMIT2, IERC20(token1), "WethOptionPoolVault", "ETHCC");
+        OpHook opHook = new OpHook{salt: salt}(poolManager, MAINNET_PERMIT2, IERC20(token1), "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
         poolManager.unlock("");
         poolManager.initialize(PoolKey({
             currency0: Currency.wrap(token1),

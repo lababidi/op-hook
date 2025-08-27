@@ -19,20 +19,37 @@ interface IUniswapV3Pool {
 }
     
 
-library PriceMath {
+contract PriceMath {
+
+    function squarePrice(uint160 sqrtPriceX96) internal pure returns (uint256) {
+        uint256 sqrtPriceX32 = (uint256(sqrtPriceX96)>>64);
+        // priceX96 is Q64.96, so we square to get the ratio
+        uint256 priceX64 = uint256(sqrtPriceX32) * uint256(sqrtPriceX32);
+        return priceX64;
+    }
+
     // Returns price of 1 WETH in USDC with 18 decimals precision
-    function getPrice(IUniswapV3Pool pool) internal view returns (uint256) {
+    // How much token1 you need to buy 1 token0 is sqrtPriceX96
+    function getPrice(IUniswapV3Pool pool, bool zeroOrOne) public view returns (uint256 price) {
         uint8 decimals0 = IERC20Metadata(pool.token0()).decimals();
         uint8 decimals1 = IERC20Metadata(pool.token1()).decimals();
         (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
-        // priceX96 is Q64.96, so we square to get the ratio
-        uint256 priceX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
+        uint256 priceX64 = squarePrice(sqrtPriceX96);
+        uint256 power = 10 ** (decimals1 >= decimals0 ? decimals1 - decimals0 : decimals0 - decimals1);
 
-        uint256 price;
+        // Calculate price with proper scaling
+        // priceX192 is in Q192.192 format, we need to extract the integer part
+        // uint256 priceX96 = priceX64 >> 96; // Convert from Q192.192 to Q96.96
+        price = (priceX64 * 10**18) >> 64; // Convert from Q96.96 to 1e18 fixed point
+        
         if (decimals1 >= decimals0) {
-            price = (priceX192 * 10 ** (decimals1 - decimals0)) >> 192;
+            price = (price/power);
         } else {
-            price = (priceX192 >> 192) / 10 ** (decimals0 - decimals1);
+            price = (price*power);
+        }
+        if (zeroOrOne) {
+            require(price > 0, "Price cannot be zero for inverse calculation");
+            price = 1e36 / price;
         }
 
         return price;
@@ -45,11 +62,22 @@ contract OptionPrice {
     // In production, this would be replaced by a real oracle or pricing logic.
 
     mapping(address => address) public pool; //we're sticking to USDC for now and WETH
+    address poolAddress;
+    PriceMath public priceMath;
 
-    function getCollateralPrice(IERC20 collateral) external view returns (uint256) {
-        return PriceMath.getPrice(IUniswapV3Pool(pool[address(collateral)]));
+    constructor(address poolAddress_) {
+        poolAddress = poolAddress_;
+        priceMath = new PriceMath();
     }
 
+    function setPool(address collateral, address poolAddress_) external {
+        pool[collateral] = poolAddress_;
+    }
+
+    function getCollateralPrice(IERC20 collateral, bool zeroOrOne) external view returns (uint256) {
+        return priceMath.getPrice(IUniswapV3Pool(poolAddress), zeroOrOne);
+    }
+    
     // Black-Scholes option pricing formula (returns price with 18 decimals)
     // underlying: price of the underlying asset (18 decimals)
     // strike: strike price (18 decimals)
@@ -237,10 +265,10 @@ contract OptionPrice {
     }
 
     // Returns the price of the token (18 decimals)
-    function getPrice(address uniPool, uint256 strike, uint256 expiration, bool optionType, bool inverse) external view returns (uint256) {
+    function getPrice(address uniPool, uint256 strike, uint256 expiration, bool optionType, bool inverse, bool zeroOrOne) external view returns (uint256) {
 
 
-        uint256 collateralPrice = PriceMath.getPrice(IUniswapV3Pool(uniPool));
+        uint256 collateralPrice = priceMath.getPrice(IUniswapV3Pool(uniPool), zeroOrOne);
 
         uint256 timeToExpiration = expiration > block.timestamp ? expiration - block.timestamp : 0;
         
