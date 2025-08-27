@@ -4,6 +4,7 @@ import "./IOptionToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 
 
@@ -27,7 +28,12 @@ library PriceMath {
         // priceX96 is Q64.96, so we square to get the ratio
         uint256 priceX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
 
-        uint256 price = (priceX192 * 10 ** (decimals1 - decimals0)) >> 192;
+        uint256 price;
+        if (decimals1 >= decimals0) {
+            price = (priceX192 * 10 ** (decimals1 - decimals0)) >> 192;
+        } else {
+            price = (priceX192 >> 192) / 10 ** (decimals0 - decimals1);
+        }
 
         return price;
     }
@@ -168,7 +174,8 @@ contract OptionPrice {
         // this is actually 0 to 5
         // There are 100 items in expGrid, mapping x in [0, 5e18] to idx in [0,99]
         // Each step is 0.05e18 (5e16)
-        uint256 idx = uint256(-1 + int256(x / 5e16)); // 5e16 = 0.05e18, so x in [0, 5e18] maps to idx in [0,99]
+        uint256 xDiv = x / 5e16;
+        uint256 idx = xDiv > 0 ? xDiv - 1 : 0; // 5e16 = 0.05e18, so x in [0, 5e18] maps to idx in [0,99]
         if (idx > 99) idx = 99;
         uint256 expVal = uint256(expGrid[idx]);
         return expVal;
@@ -229,48 +236,27 @@ contract OptionPrice {
         }
     }
 
-
-    // Returns the price of the token (18 decimals)
-    // function getPrice(address token, bool inverse) external view returns (uint256) {
-    //     IOptionToken optionToken = IOptionToken(token);
-    //     uint256 expiration = optionToken.expirationDate();
-    //     uint256 strike = optionToken.strike();
-    //     IERC20 collateral = optionToken.collateral();
-    //     bool optionType = optionToken.isPut();
-
-    //     address wethusd = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
-
-    //     uint256 collateralPrice = PriceMath.getPrice(IUniswapV3Pool(wethusd));
-
-    //     uint256 price = blackScholesPrice(
-    //         collateralPrice, 
-    //         strike, 
-    //         expiration - block.timestamp, 
-    //         0.2 * 1e18, 
-    //         0.05 * 1e18, 
-    //         optionType
-    //         );
-
-    //     return inverse ? 1e36 / price : price ;
-    // }
-
-
     // Returns the price of the token (18 decimals)
     function getPrice(address uniPool, uint256 strike, uint256 expiration, bool optionType, bool inverse) external view returns (uint256) {
 
 
         uint256 collateralPrice = PriceMath.getPrice(IUniswapV3Pool(uniPool));
 
+        uint256 timeToExpiration = expiration > block.timestamp ? expiration - block.timestamp : 0;
+        
         uint256 price = blackScholesPrice(
             collateralPrice, 
             strike, 
-            expiration - block.timestamp, 
+            timeToExpiration, 
             0.2 * 1e18, 
             0.05 * 1e18, 
             optionType
             );
 
-        return inverse ? 1e36 / price : price ;
+        if (inverse && price > 0) {
+            return 1e36 / price;
+        }
+        return price;
     }
 
 

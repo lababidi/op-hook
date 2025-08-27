@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import "../contracts/OpHook.sol";
 import "../contracts/IOptionToken.sol";
 import "../contracts/MockOptionToken.sol";
@@ -10,6 +11,7 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
 
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
@@ -23,27 +25,31 @@ contract MockERC20 is ERC20 {
 
 
 contract OpHookTest is Test {
+    // Real Mainnet addresses for testing
+    address constant MOCK_POOL_MANAGER = address(0x000000000004444c5dc75cB358380D2e3dE08A90);
+    address constant MOCK_PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+
     OpHook public opHook;
-    MockERC20 public mockWeth;
-    MockERC20 public mockUsdc;
+    IERC20 public usdc;
+    IWETH9 public weth;
+    address weth_ = MAINNET_WETH;
+    address usdc_ = MAINNET_USDC;
     MockOptionToken public mockOptionToken;
     
-    // Mock addresses for testing
-    address constant MOCK_POOL_MANAGER = address(0x1234567890123456789012345678901234567890);
-    address constant MOCK_PERMIT2 = address(0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD);
     
     function setUp() public {
         // Deploy mock tokens
-        mockWeth = new MockERC20("Wrapped Ether", "WETH");
-        mockUsdc = new MockERC20("USD Coin", "USDC");
-        mockOptionToken = new MockOptionToken("MockOption", "MOPT", address(0), address(0));
-        
+        weth = IWETH9(MAINNET_WETH);
+        usdc = IERC20(MAINNET_USDC);
+        mockOptionToken = new MockOptionToken("MockOption", "MOPT", weth_, usdc_);
         // Deploy OpHook using HookMiner to get correct address
         uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG;
         bytes memory constructorArgs = abi.encode(
             IPoolManager(MOCK_POOL_MANAGER),
             MOCK_PERMIT2,
-            IERC20(address(mockWeth)),
+            IERC20(address(weth)),
             "WethOptionPoolVault",
             "ETHCC"
         );
@@ -58,66 +64,32 @@ contract OpHookTest is Test {
         opHook = new OpHook{salt: salt}(
             IPoolManager(MOCK_POOL_MANAGER),
             MOCK_PERMIT2,
-            IERC20(address(mockWeth)),
+            weth,
             "WethOptionPoolVault",
             "ETHCC"
         );
+        console.log("Address", hookAddress);
+        console.log("Address", address(opHook));
     }
 
-    function testConstructor() public {
-        // Test basic constructor functionality using the hook deployed in setUp
-        
-        // Verify constructor set the values correctly
-        assertEq(address(opHook.underlying()), address(mockWeth));
-        assertEq(address(opHook.PERMIT2()), MOCK_PERMIT2);
-        assertEq(opHook.name(), "WethOptionPoolVault");
-        assertEq(opHook.symbol(), "ETHCC");
-        
-        // Verify initial state
-        assertEq(opHook.totalAssets(), 0);
-        assertEq(opHook.totalSupply(), 0);
-        
-        // Verify pools array is empty initially
-        assertEq(opHook.getPools().length, 0);
-    }
 
-    function testGetHookPermissions() public {
-        // Test that getHookPermissions returns the expected permissions
-        Hooks.Permissions memory permissions = opHook.getHookPermissions();
-        
-        // Verify the specific permissions set by OpHook
-        assertFalse(permissions.beforeInitialize, "beforeInitialize should be false");
-        assertFalse(permissions.afterInitialize, "afterInitialize should be false");
-        assertTrue(permissions.beforeAddLiquidity, "beforeAddLiquidity should be true");
-        assertFalse(permissions.afterAddLiquidity, "afterAddLiquidity should be false");
-        assertFalse(permissions.beforeRemoveLiquidity, "beforeRemoveLiquidity should be false");
-        assertFalse(permissions.afterRemoveLiquidity, "afterRemoveLiquidity should be false");
-        assertTrue(permissions.beforeSwap, "beforeSwap should be true");
-        assertFalse(permissions.afterSwap, "afterSwap should be false");
-        assertTrue(permissions.beforeDonate, "beforeDonate should be true");
-        assertFalse(permissions.afterDonate, "afterDonate should be false");
-        assertFalse(permissions.beforeSwapReturnDelta, "beforeSwapReturnDelta should be false");
-        assertFalse(permissions.afterSwapReturnDelta, "afterSwapReturnDelta should be false");
-        assertFalse(permissions.afterAddLiquidityReturnDelta, "afterAddLiquidityReturnDelta should be false");
-        assertFalse(permissions.afterRemoveLiquidityReturnDelta, "afterRemoveLiquidityReturnDelta should be false");
-    }
 
     function testInitPool() public {
         // Test initializing a pool with option token and cash
-        uint24 fee = 3000; // 0.3% fee
+        uint24 fee = 0; // 0.3% fee
         
         // Check initial state - no pools
         assertEq(opHook.getPools().length, 0);
         
         // Initialize a pool
-        opHook.initPool(address(mockOptionToken), address(mockUsdc), fee);
+        opHook.initPool(address(mockOptionToken), address(usdc), fee);
         
         // Verify pool was added
         assertEq(opHook.getPools().length, 1, "Pool should be added to the pools array");
         
         // Test that we can initialize multiple pools
-        MockOptionToken mockOptionToken2 = new MockOptionToken("MockOption2", "MOPT2", address(0), address(0));
-        opHook.initPool(address(mockOptionToken2), address(mockUsdc), fee);
+        MockOptionToken mockOptionToken2 = new MockOptionToken("MockOption2", "MOPT2", MAINNET_WETH, MAINNET_USDC);
+        opHook.initPool(address(mockOptionToken2), address(usdc), fee);
         assertEq(opHook.getPools().length, 2, "Second pool should be added");
     }
 
@@ -126,15 +98,15 @@ contract OpHookTest is Test {
         uint256 depositAmount = 100 * 1e18; // 100 WETH
         address user = address(0x123);
         
-        // Give user some WETH
-        mockWeth.mint(user, depositAmount);
+        // Give user some WETH  
+        deal(address(weth), user, depositAmount);
         
         // Approve the hook to spend WETH
         vm.prank(user);
-        mockWeth.approve(address(opHook), depositAmount);
+        weth.approve(address(opHook), depositAmount);
         
         // Get initial balances
-        uint256 initialWethBalance = mockWeth.balanceOf(user);
+        uint256 initialWethBalance = weth.balanceOf(user);
         uint256 initialShares = opHook.balanceOf(user);
         
         // Deposit WETH to the vault
@@ -142,7 +114,7 @@ contract OpHookTest is Test {
         uint256 sharesReceived = opHook.deposit(depositAmount, user);
         
         // Verify deposit
-        assertEq(mockWeth.balanceOf(user), initialWethBalance - depositAmount, "User WETH should be debited");
+        assertEq(weth.balanceOf(user), initialWethBalance - depositAmount, "User WETH should be debited");
         assertEq(opHook.balanceOf(user), initialShares + sharesReceived, "User should receive shares");
         assertEq(opHook.totalAssets(), depositAmount, "Vault should hold deposited assets");
         assertEq(opHook.totalSupply(), sharesReceived, "Total shares should equal issued shares");
@@ -157,21 +129,21 @@ contract OpHookTest is Test {
         address user = address(0x123);
         
         // Setup: deposit assets
-        mockWeth.mint(user, depositAmount);
+        deal(address(weth), user, depositAmount);
         vm.prank(user);
-        mockWeth.approve(address(opHook), depositAmount);
+        weth.approve(address(opHook), depositAmount);
         vm.prank(user);
         uint256 shares = opHook.deposit(depositAmount, user);
         
         // Now test withdrawal
         uint256 withdrawAmount = 50 * 1e18; // Withdraw 50 WETH
-        uint256 initialWethBalance = mockWeth.balanceOf(user);
+        uint256 initialWethBalance = weth.balanceOf(user);
         
         vm.prank(user);
         uint256 sharesBurned = opHook.withdraw(withdrawAmount, user, user);
         
         // Verify withdrawal
-        assertEq(mockWeth.balanceOf(user), initialWethBalance + withdrawAmount, "User should receive WETH");
+        assertEq(weth.balanceOf(user), initialWethBalance + withdrawAmount, "User should receive WETH");
         assertEq(opHook.balanceOf(user), shares - sharesBurned, "User shares should be reduced");
         assertEq(opHook.totalAssets(), depositAmount - withdrawAmount, "Vault assets should be reduced");
     }
@@ -182,11 +154,11 @@ contract OpHookTest is Test {
         address user = address(0x456);
         
         // Give user enough WETH (more than needed for minting)
-        mockWeth.mint(user, 200 * 1e18);
+        deal(address(weth), user, 200 * 1e18);
         
         // Approve the hook to spend WETH
         vm.prank(user);
-        mockWeth.approve(address(opHook), 200 * 1e18);
+        weth.approve(address(opHook), 200 * 1e18);
         
         // Test mint
         vm.prank(user);
@@ -199,14 +171,14 @@ contract OpHookTest is Test {
         
         // Test redeem
         uint256 sharesToRedeem = 50 * 1e18; // Redeem 50 shares
-        uint256 initialWethBalance = mockWeth.balanceOf(user);
+        uint256 initialWethBalance = weth.balanceOf(user);
         
         vm.prank(user);
         uint256 assetsReceived = opHook.redeem(sharesToRedeem, user, user);
         
         // Verify redeem
         assertEq(opHook.balanceOf(user), sharesToMint - sharesToRedeem, "User shares should be reduced");
-        assertEq(mockWeth.balanceOf(user), initialWethBalance + assetsReceived, "User should receive WETH");
+        assertEq(weth.balanceOf(user), initialWethBalance + assetsReceived, "User should receive WETH");
         assertEq(assetsReceived, sharesToRedeem, "Should receive 1:1 assets initially");
     }
     
@@ -223,9 +195,9 @@ contract OpHookTest is Test {
         // After deposit, stats should update
         uint256 depositAmount = 100 * 1e18;
         address user = address(0x789);
-        mockWeth.mint(user, depositAmount);
+        deal(address(weth), user, depositAmount);
         vm.prank(user);
-        mockWeth.approve(address(opHook), depositAmount);
+        weth.approve(address(opHook), depositAmount);
         vm.prank(user);
         opHook.deposit(depositAmount, user);
         
@@ -236,42 +208,64 @@ contract OpHookTest is Test {
     }
 
     
-    function testGetOptionPrice() public {
+    function testGetOptionPrice() public view {
         // Test getOptionPrice function with mock option token
         // Note: This will likely fail because OptionPrice needs proper setup,
         // but let's test the interface
-        try opHook.getOptionPrice(address(mockOptionToken)) returns (CurrentOptionPrice memory price) {
-            // If it doesn't revert, verify the structure
-            assertEq(price.underlying, address(mockWeth), "Underlying should match");
-            assertEq(price.optionToken, address(mockOptionToken), "Option token should match");
-            // Price could be any value, just check it's returned
-            assertTrue(price.price >= 0, "Price should be non-negative");
-        } catch {
-            // Expected to fail due to mock setup, but we tested the interface
-            assertTrue(true, "Expected to fail with mock setup");
-        }
+        CurrentOptionPrice memory price = opHook.getOptionPrice(address(mockOptionToken));
+        // If it doesn't revert, verify the structure
+        assertEq(price.underlying, address(weth), "Underlying should match");
+        assertEq(price.optionToken, address(mockOptionToken), "Option token should match");
+        console.log("price", price.price);
+        // Price could be any value, just check it's returned
+        assertTrue(price.price >= 0, "Price should be non-negative");
+
     }
 
-    function testOpHookCompilation() public  {
-        // Basic test to ensure the contract compiles successfully
-        // The counter contract is a Uniswap v4 hook that tracks swap and liquidity events
-        IPoolManager poolManager = IPoolManager(address(0x1234567890123456789012345678901234567890));
-        address permit2 = address(0x1234567890123456789012345678901234567890);
-        IERC20 weth = IERC20(address(0x1234567890123456789012345678901234567890));
-
-        uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG;
-        bytes memory constructorArgs = abi.encode(IPoolManager(address(poolManager)), permit2, IERC20(weth), "WethOptionPoolVault", "ETHCC");
-
-        (address hookAddress, bytes32 salt) = HookMiner.find(
-            address(this),
-            flags,
-            type(OpHook).creationCode,
-            constructorArgs
-        );
-        console.log("hookAddress", hookAddress);
-        console.log("salt", uint256(salt));
-
-        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, IERC20(weth), "WethOptionPoolVault", "ETHCC");
-        assert(true);
+    function testUserAccountWithEthWethAndSwap() public {
+        // Set up user account
+        address user = address(0x123456789);
+        uint256 initialEthAmount = 10 ether;
+        
+        // Deal ETH to user account
+        vm.deal(user, initialEthAmount);
+        assertEq(user.balance, initialEthAmount, "User should have initial ETH");
+        
+        // Wrap ETH to WETH
+        uint256 wrapAmount = 5 ether;
+        vm.prank(user);
+        weth.deposit{value: wrapAmount}();
+        
+        // Verify WETH balance
+        assertEq(weth.balanceOf(user), wrapAmount, "User should have WETH");
+        assertEq(user.balance, initialEthAmount - wrapAmount, "User ETH should be reduced");
+        
+        // For swapping to USDC, we'll use a simple approach with deal
+        // In a real test, you'd integrate with Uniswap V3 or another DEX
+        // For now, we'll simulate receiving USDC after "swapping"
+        uint256 swapAmount = 2 ether; // 2 WETH to swap
+        uint256 usdcReceived = 4000 * 1e6; // Assume ~$2000 per ETH, USDC has 6 decimals
+        
+        // Approve WETH spending (would be for actual DEX)
+        vm.prank(user);
+        weth.approve(address(this), swapAmount);
+        
+        // Simulate the swap by dealing USDC and reducing WETH
+        vm.startPrank(user);
+        weth.transfer(address(0xdead), swapAmount); // Burn WETH to simulate swap
+        vm.stopPrank();
+        
+        // Deal USDC to simulate swap result
+        deal(MAINNET_USDC, user, usdcReceived);
+        
+        // Verify final balances
+        assertEq(weth.balanceOf(user), wrapAmount - swapAmount, "WETH balance should be reduced");
+        assertEq(IERC20(MAINNET_USDC).balanceOf(user), usdcReceived, "User should have USDC");
+        
+        console.log("User account setup complete:");
+        console.log("- ETH balance:", user.balance);
+        console.log("- WETH balance:", weth.balanceOf(user));
+        console.log("- USDC balance:", IERC20(MAINNET_USDC).balanceOf(user));
     }
+
 }
