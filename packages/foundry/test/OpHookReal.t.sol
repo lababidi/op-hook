@@ -14,85 +14,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-// Import the mock option token from the fork test file
-contract MockOptionTokenFork is ERC20, IOptionToken {
-    uint256 private _expirationDate;
-    uint256 private _strike;
-    bool private _isPut;
-    IERC20 private _collateral;
-    IERC20 private _consideration;
-    address private _permit2;
-    bool private _initialized;
-    
-    constructor(string memory name, string memory symbol, address collateral, address consideration) ERC20(name, symbol) {
-        _expirationDate = block.timestamp + 30 days;
-        _strike = 2000 * 1e18; // $2000 strike
-        _isPut = false; // Call option
-        _collateral = IERC20(collateral);
-        _consideration = IERC20(consideration);
-        _initialized = true;
-    }
-    
-    function PERMIT2() external view returns (address) { return _permit2; }
-    function expirationDate() external view returns (uint256) { return _expirationDate; }
-    function strike() external view returns (uint256) { return _strike; }
-    function STRIKE_DECIMALS() external pure returns (uint256) { return 18; }
-    function isPut() external view returns (bool) { return _isPut; }
-    function collateral() external view returns (IERC20) { return _collateral; }
-    function consideration() external view returns (IERC20) { return _consideration; }
-    function initialized() external view returns (bool) { return _initialized; }
-    
-    function toConsideration(uint256 amount) external pure returns (uint256) { return amount; }
-    
-    function init(
-        string memory,
-        string memory,
-        address collateral_,
-        address consideration_,
-        uint256 expirationDate_,
-        uint256 strike_,
-        bool isPut_
-    ) external {
-        _collateral = IERC20(collateral_);
-        _consideration = IERC20(consideration_);
-        _expirationDate = expirationDate_;
-        _strike = strike_;
-        _isPut = isPut_;
-        _initialized = true;
-    }
-    
-    function name() public view override(ERC20, IOptionToken) returns (string memory) {
-        return ERC20.name();
-    }
-    
-    function symbol() public view override(ERC20, IOptionToken) returns (string memory) {
-        return ERC20.symbol();
-    }
-    
-    function collateralData() external pure returns (TokenData memory) {
-        return TokenData("WETH", "WETH", 18);
-    }
-    
-    function considerationData() external pure returns (TokenData memory) {
-        return TokenData("USDC", "USDC", 6);
-    }
-    
-    function mint(IPermit2.PermitTransferFrom calldata, IPermit2.SignatureTransferDetails calldata, bytes calldata) external {
-        _mint(msg.sender, 1000 * 1e18);
-    }
-    
-    function mint(uint256 amount) external {
-        _mint(msg.sender, amount);
-    }
-    
-    function exercise(IPermit2.PermitTransferFrom calldata, IPermit2.SignatureTransferDetails calldata, bytes calldata) external {
-        // Mock implementation
-    }
-    
-    function redeem(uint256 amount) external {
-        _burn(msg.sender, amount);
-    }
-}
+import {MockOptionToken} from "../contracts/MockOptionToken.sol";
 
 /**
  * OpHookReal.t.sol - Tests OpHook with real deployed tokens and price feeds
@@ -153,7 +75,8 @@ contract OpHookRealTest is Test {
         }
         
         // Deploy PoolManager
-        poolManager = new PoolManager(address(this));
+        // poolManager = new PoolManager(address(this));
+        poolManager = PoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
         console.log("PoolManager deployed at:", address(poolManager));
         
         if (wethAddress != address(0) && usdcAddress != address(0)) {
@@ -220,32 +143,6 @@ contract OpHookRealTest is Test {
         if (usdc.balanceOf(address(this)) > 0) {
             console.log("Test contract has USDC balance:", usdc.balanceOf(address(this)));
         }
-    }
-    
-    function testVaultWithRealTokens() public {
-        if (wethAddress == address(0)) {
-            console.log("Skipping vault test - no real tokens configured");
-            return;
-        }
-        
-        console.log("=== Testing Vault with Real Tokens ===");
-        
-        // This test would work if we had WETH balance
-        uint256 wethBalance = weth.balanceOf(address(this));
-        if (wethBalance == 0) {
-            console.log("No WETH balance for testing - would need to acquire WETH first");
-            console.log("On mainnet fork, you could:");
-            console.log("1. Impersonate a whale account");
-            console.log("2. Use deal() to give test accounts tokens");
-            console.log("3. Wrap ETH to get WETH");
-            return;
-        }
-        
-        // If we had balance, we could test:
-        console.log("Available WETH:", wethBalance);
-        // weth.approve(address(opHook), wethBalance);
-        // uint256 shares = opHook.deposit(wethBalance, address(this));
-        // console.log("Deposited real WETH, received shares:", shares);
     }
     
     function testMainnetForkWithWhale() public {
@@ -336,7 +233,7 @@ contract OpHookRealTest is Test {
         console.log("=== Testing OpHook with Real Price Integration ===");
         
         // Create a real option token for testing (even if mock implementation)
-        MockOptionTokenFork realOption = new MockOptionTokenFork(
+        MockOptionToken realOption = new MockOptionToken(
             "Real WETH Call $3000",
             "rWETH-C-3000", 
             wethAddress, // Real WETH
@@ -410,15 +307,15 @@ contract OpHookRealTest is Test {
         console.log("=== Creating LP with Real Token Integration ===");
         
         // Create multiple option tokens for comprehensive testing
-        MockOptionTokenFork[] memory realOptions = new MockOptionTokenFork[](3);
+        MockOptionToken[] memory realOptions = new MockOptionToken[](3);
         
-        realOptions[0] = new MockOptionTokenFork(
+        realOptions[0] = new MockOptionToken(
             "Real ETH Call $3200", "rETH-C-3200", wethAddress, usdcAddress
         );
-        realOptions[1] = new MockOptionTokenFork(
+        realOptions[1] = new MockOptionToken(
             "Real ETH Call $3500", "rETH-C-3500", wethAddress, usdcAddress  
         );
-        realOptions[2] = new MockOptionTokenFork(
+        realOptions[2] = new MockOptionToken(
             "Real ETH Put $2800", "rETH-P-2800", usdcAddress, wethAddress
         );
         

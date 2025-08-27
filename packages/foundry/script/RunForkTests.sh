@@ -10,13 +10,14 @@ forge test --match-contract OpHookForkTest -vv
 
 echo -e "\n=== Fork Testing Options ==="
 echo "2. To test against mainnet fork (requires ALCHEMY_API_KEY):"
-echo "   forge test --match-contract OpHookForkTest --fork-url https://eth-mainnet.alchemyapi.io/v2/\$ALCHEMY_API_KEY -vv"
+echo "   forge test --match-contract OpHookForkTest --fork-url https://ethereum-rpc.publicnode.com -vv"
 
 echo -e "\n3. To test against your local yarn chain with deployed contracts:"
 echo "   forge test --match-contract OpHookForkTest --fork-url http://localhost:8545 -vv"
 
 echo -e "\n4. To test against Sepolia testnet:"
-echo "   forge test --match-contract OpHookForkTest --fork-url https://eth-sepolia.g.alchemy.com/v2/\$ALCHEMY_API_KEY -vv"
+echo "   forge test --match-contract OpHookForkTest --fork-url https://eth-sepolia.g.alchemy.com/v2/\$ALCHEMY_API_KEY -vvvvv"
+echo "   forge test --match-contract OpHookForkTest --fork-url https://unichain-sepolia-rpc.publicnode.com -vvvvv"
 
 echo -e "\nNote: When using fork testing, your tests will have access to:"
 echo "- Real deployed contracts (WETH, USDC, etc.)"

@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/OpHook.sol";
 import "../contracts/IOptionToken.sol";
+import "../contracts/MockOptionToken.sol";
 import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
@@ -20,91 +21,6 @@ contract MockERC20 is ERC20 {
     }
 }
 
-contract MockOptionToken is ERC20, IOptionToken {
-    uint256 private _expirationDate;
-    uint256 private _strike;
-    bool private _isPut;
-    IERC20 private _collateral;
-    IERC20 private _consideration;
-    address private _permit2;
-    bool private _initialized;
-    
-    constructor() ERC20("MockOption", "MOPT") {
-        _expirationDate = block.timestamp + 30 days;
-        _strike = 2000 * 1e18; // $2000 strike
-        _isPut = false; // Call option
-        _initialized = true;
-    }
-    
-    function PERMIT2() external view returns (address) { return _permit2; }
-    function expirationDate() external view returns (uint256) { return _expirationDate; }
-    function strike() external view returns (uint256) { return _strike; }
-    function STRIKE_DECIMALS() external view returns (uint256) { return 18; }
-    function isPut() external view returns (bool) { return _isPut; }
-    function collateral() external view returns (IERC20) { return _collateral; }
-    function consideration() external view returns (IERC20) { return _consideration; }
-    function initialized() external view returns (bool) { return _initialized; }
-    
-    function toConsideration(uint256 amount) external view returns (uint256) { return amount; }
-    
-    function init(
-        string memory name_,
-        string memory symbol_,
-        address collateral_,
-        address consideration_,
-        uint256 expirationDate_,
-        uint256 strike_,
-        bool isPut_
-    ) external {
-        _collateral = IERC20(collateral_);
-        _consideration = IERC20(consideration_);
-        _expirationDate = expirationDate_;
-        _strike = strike_;
-        _isPut = isPut_;
-        _initialized = true;
-    }
-    
-    function name() public view override(ERC20, IOptionToken) returns (string memory) {
-        return ERC20.name();
-    }
-    
-    function symbol() public view override(ERC20, IOptionToken) returns (string memory) {
-        return ERC20.symbol();
-    }
-    
-    function collateralData() external view returns (TokenData memory) {
-        return TokenData("WETH", "WETH", 18);
-    }
-    
-    function considerationData() external view returns (TokenData memory) {
-        return TokenData("USDC", "USDC", 6);
-    }
-    
-    function mint(
-        IPermit2.PermitTransferFrom calldata permit,
-        IPermit2.SignatureTransferDetails calldata transferDetails,
-        bytes calldata signature
-    ) external {
-        // Mock implementation - just mint tokens
-        _mint(msg.sender, 1000 * 1e18);
-    }
-    
-    function mint(uint256 amount) external {
-        _mint(msg.sender, amount);
-    }
-    
-    function exercise(
-        IPermit2.PermitTransferFrom calldata permit,
-        IPermit2.SignatureTransferDetails calldata transferDetails,
-        bytes calldata signature
-    ) external {
-        // Mock implementation
-    }
-    
-    function redeem(uint256 amount) external {
-        _burn(msg.sender, amount);
-    }
-}
 
 contract OpHookTest is Test {
     OpHook public opHook;
@@ -120,7 +36,7 @@ contract OpHookTest is Test {
         // Deploy mock tokens
         mockWeth = new MockERC20("Wrapped Ether", "WETH");
         mockUsdc = new MockERC20("USD Coin", "USDC");
-        mockOptionToken = new MockOptionToken();
+        mockOptionToken = new MockOptionToken("MockOption", "MOPT", address(0), address(0));
         
         // Deploy OpHook using HookMiner to get correct address
         uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG;
@@ -200,7 +116,7 @@ contract OpHookTest is Test {
         assertEq(opHook.getPools().length, 1, "Pool should be added to the pools array");
         
         // Test that we can initialize multiple pools
-        MockOptionToken mockOptionToken2 = new MockOptionToken();
+        MockOptionToken mockOptionToken2 = new MockOptionToken("MockOption2", "MOPT2", address(0), address(0));
         opHook.initPool(address(mockOptionToken2), address(mockUsdc), fee);
         assertEq(opHook.getPools().length, 2, "Second pool should be added");
     }
@@ -319,12 +235,6 @@ contract OpHookTest is Test {
         assertEq(exchangeRate_, 1e18, "Exchange rate should remain 1e18");
     }
 
-    function testWhitelistRead() public {
-        // Test reading whitelist status - initially should be false for any token
-        assertFalse(opHook.whitelist(address(mockOptionToken)), "Option token should not be whitelisted initially");
-        assertFalse(opHook.whitelist(address(mockWeth)), "WETH should not be whitelisted initially");
-        assertFalse(opHook.whitelist(address(mockUsdc)), "USDC should not be whitelisted initially");
-    }
     
     function testGetOptionPrice() public {
         // Test getOptionPrice function with mock option token

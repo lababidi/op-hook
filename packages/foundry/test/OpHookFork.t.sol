@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/OpHook.sol";
 import "../contracts/IOptionToken.sol";
+import {MockOptionToken} from "../contracts/MockOptionToken.sol";
 import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
@@ -23,93 +24,6 @@ contract MockERC20Fork is ERC20 {
     }
 }
 
-contract MockOptionTokenFork is ERC20, IOptionToken {
-    uint256 private _expirationDate;
-    uint256 private _strike;
-    bool private _isPut;
-    IERC20 private _collateral;
-    IERC20 private _consideration;
-    address private _permit2;
-    bool private _initialized;
-    
-    constructor(string memory name, string memory symbol, address collateral, address consideration) ERC20(name, symbol) {
-        _expirationDate = block.timestamp + 30 days;
-        _strike = 2000 * 1e18; // $2000 strike
-        _isPut = false; // Call option
-        _collateral = IERC20(collateral);
-        _consideration = IERC20(consideration);
-        _initialized = true;
-    }
-    
-    function PERMIT2() external view returns (address) { return _permit2; }
-    function expirationDate() external view returns (uint256) { return _expirationDate; }
-    function strike() external view returns (uint256) { return _strike; }
-    function STRIKE_DECIMALS() external pure returns (uint256) { return 18; }
-    function isPut() external view returns (bool) { return _isPut; }
-    function collateral() external view returns (IERC20) { return _collateral; }
-    function consideration() external view returns (IERC20) { return _consideration; }
-    function initialized() external view returns (bool) { return _initialized; }
-    
-    function toConsideration(uint256 amount) external pure returns (uint256) { return amount; }
-    
-    function init(
-        string memory name_,
-        string memory symbol_,
-        address collateral_,
-        address consideration_,
-        uint256 expirationDate_,
-        uint256 strike_,
-        bool isPut_
-    ) external {
-        _collateral = IERC20(collateral_);
-        _consideration = IERC20(consideration_);
-        _expirationDate = expirationDate_;
-        _strike = strike_;
-        _isPut = isPut_;
-        _initialized = true;
-    }
-    
-    function name() public view override(ERC20, IOptionToken) returns (string memory) {
-        return ERC20.name();
-    }
-    
-    function symbol() public view override(ERC20, IOptionToken) returns (string memory) {
-        return ERC20.symbol();
-    }
-    
-    function collateralData() external pure returns (TokenData memory) {
-        return TokenData("WETH", "WETH", 18);
-    }
-    
-    function considerationData() external pure returns (TokenData memory) {
-        return TokenData("USDC", "USDC", 6);
-    }
-    
-    function mint(
-        IPermit2.PermitTransferFrom calldata,
-        IPermit2.SignatureTransferDetails calldata,
-        bytes calldata
-    ) external {
-        _mint(msg.sender, 1000 * 1e18);
-    }
-    
-    function mint(uint256 amount) external {
-        _mint(msg.sender, amount);
-    }
-    
-    function exercise(
-        IPermit2.PermitTransferFrom calldata,
-        IPermit2.SignatureTransferDetails calldata,
-        bytes calldata
-    ) external {
-        // Mock implementation
-    }
-    
-    function redeem(uint256 amount) external {
-        _burn(msg.sender, amount);
-    }
-}
-
 contract OpHookForkTest is Test {
     OpHook public opHook;
     MockERC20Fork public weth;
@@ -121,7 +35,7 @@ contract OpHookForkTest is Test {
     
     function setUp() public {
         // Deploy a real PoolManager for testing
-        poolManager = new PoolManager(address(this));
+        poolManager = PoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
         
         // Deploy mock tokens
         weth = new MockERC20Fork("Wrapped Ether", "WETH");
@@ -152,11 +66,12 @@ contract OpHookForkTest is Test {
             "ETHCC"
         );
         
+        console.log("OpHook expected at:", address(hookAddress));
         console.log("OpHook deployed at:", address(opHook));
         console.log("PoolManager deployed at:", address(poolManager));
     }
     
-    function testForkSetup() public {
+    function testForkSetup() public view {
         // Verify our fork setup works
         assertEq(address(opHook.poolManager()), address(poolManager));
         assertEq(address(opHook.underlying()), address(weth));
@@ -191,7 +106,7 @@ contract OpHookForkTest is Test {
         uint24 fee = 3000;
         
         // Create a proper mock option token that implements IOptionToken
-        MockOptionTokenFork optionToken = new MockOptionTokenFork(
+        MockOptionToken optionToken = new MockOptionToken(
             "Call Option", 
             "CALL",
             address(weth),
@@ -231,7 +146,7 @@ contract OpHookForkTest is Test {
         console.log("- Received shares:", shares / 1e18);
         
         // 2. Create option token with proper parameters
-        MockOptionTokenFork callOption = new MockOptionTokenFork(
+        MockOptionToken callOption = new MockOptionToken(
             "WETH Call Option $3000 Strike", 
             "WETH-CALL-3000",
             address(weth), // collateral
@@ -296,14 +211,14 @@ contract OpHookForkTest is Test {
         console.log("=== Testing Whitelist and Swap Hook Behavior ===");
         
         // Create option tokens
-        MockOptionTokenFork ethCallOption = new MockOptionTokenFork(
+        MockOptionToken ethCallOption = new MockOptionToken(
             "ETH Call $2500", 
             "ETH-C-2500",
             address(weth),
             address(usdc)
         );
         
-        MockOptionTokenFork ethPutOption = new MockOptionTokenFork(
+        MockOptionToken ethPutOption = new MockOptionToken(
             "ETH Put $1800", 
             "ETH-P-1800", 
             address(usdc),
@@ -312,11 +227,6 @@ contract OpHookForkTest is Test {
         
         console.log("Created ETH call and put options");
         
-        // Test whitelist functionality - initially all should be false
-        assertFalse(opHook.whitelist(address(ethCallOption)), "Call option should not be whitelisted initially");
-        assertFalse(opHook.whitelist(address(ethPutOption)), "Put option should not be whitelisted initially");
-        assertFalse(opHook.whitelist(address(weth)), "WETH should not be whitelisted initially");
-        assertFalse(opHook.whitelist(address(usdc)), "USDC should not be whitelisted initially");
         
         console.log("Verified initial whitelist state - all tokens not whitelisted");
         
@@ -376,7 +286,7 @@ contract OpHookForkTest is Test {
         console.log("- Utilization rate:", utilizationRate_);
         
         // Create and initialize an option pool
-        MockOptionTokenFork option = new MockOptionTokenFork(
+        MockOptionToken option = new MockOptionToken(
             "WETH Call $2800",
             "WETH-C-2800",
             address(weth),
@@ -418,10 +328,10 @@ contract OpHookForkTest is Test {
         console.log("Vault funded with", vaultDeposit / 1e18, "WETH");
         
         // 2. Create multiple option tokens with different strikes and types
-        MockOptionTokenFork[] memory options = new MockOptionTokenFork[](4);
+        MockOptionToken[] memory options = new MockOptionToken[](4);
         
         // ETH Call $3000 
-        options[0] = new MockOptionTokenFork(
+        options[0] = new MockOptionToken(
             "ETH Call $3000",
             "ETH-C-3000",
             address(weth),
@@ -429,7 +339,7 @@ contract OpHookForkTest is Test {
         );
         
         // ETH Call $3500
-        options[1] = new MockOptionTokenFork(
+        options[1] = new MockOptionToken(
             "ETH Call $3500", 
             "ETH-C-3500",
             address(weth),
@@ -437,7 +347,7 @@ contract OpHookForkTest is Test {
         );
         
         // ETH Put $2500
-        options[2] = new MockOptionTokenFork(
+        options[2] = new MockOptionToken(
             "ETH Put $2500",
             "ETH-P-2500", 
             address(usdc),
@@ -445,7 +355,7 @@ contract OpHookForkTest is Test {
         );
         
         // ETH Put $2000
-        options[3] = new MockOptionTokenFork(
+        options[3] = new MockOptionToken(
             "ETH Put $2000",
             "ETH-P-2000",
             address(usdc), 

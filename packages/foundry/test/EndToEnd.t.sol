@@ -161,7 +161,6 @@ contract EndToEndTest is Test {
             hooks: opHook,
             tickSpacing: 60
         }), 1e18);
-        opHook.whitelist(TEST_OPTION_TOKEN);
 
         PoolSwapTest.TestSettings memory testSettings = PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
 

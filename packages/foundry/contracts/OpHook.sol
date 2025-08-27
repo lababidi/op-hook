@@ -61,13 +61,13 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     event OptionPoolUpdated(address indexed oldPool, address indexed newPool);
     event EmergencyWithdraw(address indexed owner, uint256 amount);
 
-    OptionPrice public  optionPrice;
+    OptionPrice public optionPrice;
     IERC20 public underlying;
+    address pricePool;
 
     IPermit2 public immutable PERMIT2;
 
-    mapping(address => bool) public whitelist;
-
+    mapping(address => bool) public options;
     OptionPool[] public pools;
 
     constructor(IPoolManager _poolManager, address permit2, IERC20 _underlying, string memory _name, string memory _symbol) 
@@ -78,6 +78,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         optionPrice = new OptionPrice();
         PERMIT2 = IPermit2(permit2);
         underlying = _underlying;
+        pricePool = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -106,38 +107,39 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
 
         address token0 = Currency.unwrap(key.currency0);
         address token1 = Currency.unwrap(key.currency1);
-        address tokenA;
-        if (whitelist[token1]){
-            tokenA = token1;
-        } else if (whitelist[token0]){
-            tokenA = token0;
+        address option_;
+        if (options[token1]){
+            option_ = token1;
+        } else if (options[token0]){
+            option_ = token0;
         } else {
             revert("Token not whitelisted");
         }
-        IOptionToken optionToken = IOptionToken(tokenA);
+        IOptionToken option = IOptionToken(option_);
         require(params.amountSpecified < 0, "amountSpecified must be negative");
         uint256 amount = uint256(-params.amountSpecified);
         int128 amount_ = int128(int256(amount));
         if (params.zeroForOne) {
-            uint256 price = optionPrice.getPrice(tokenA, false);
-            uint256 tokenAAmount = (amount * price) / 1e18;
-            int128 tokenAAmount_ = int128(int256(tokenAAmount));
-            require(tokenAAmount <= optionToken.balanceOf(address(this)), "Insufficient optionToken balance");
+            
+            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false);
+            uint256 collateralAmount = (amount * price) / 1e18;
+            int128 collateralAmount_ = int128(int256(collateralAmount));
+            require(collateralAmount <= option.balanceOf(address(this)), "Insufficient optionToken balance");
 
-            optionToken.mint(tokenAAmount);
-            BeforeSwapDelta delta = toBeforeSwapDelta(-amount_, tokenAAmount_);
+            option.mint(collateralAmount);
+            BeforeSwapDelta delta = toBeforeSwapDelta(-amount_, collateralAmount_);
             poolManager.mint(address(this), key.currency0.toId(), amount);
-            poolManager.burn(address(this), key.currency1.toId(), tokenAAmount);
+            poolManager.burn(address(this), key.currency1.toId(), collateralAmount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
-            uint256 price = optionPrice.getPrice(tokenA, true);
-            uint256 tokenBAmount = (amount * price) / 1e18;
+            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false);
+            uint256 tokenBAmount = Math.mulDiv(amount, price, 1e18);
             int128 tokenBAmount_ = int128(int256(tokenBAmount));
             BeforeSwapDelta delta = toBeforeSwapDelta(tokenBAmount_, -amount_);
             poolManager.mint(address(this), key.currency1.toId(), amount);
             poolManager.burn(address(this), key.currency0.toId(), tokenBAmount);
             poolManager.settle();
-            optionToken.redeem(amount);
+            option.redeem(amount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         }
     }
@@ -158,30 +160,6 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         }
 
 
-    // function addLiquidity(
-    //     IPermit2.PermitTransferFrom calldata permit, 
-    //     IPermit2.SignatureTransferDetails calldata transferDetails, 
-    //     address owner, 
-    //     bytes calldata signature
-    //     ) public {
-    //         // NOTE: this is a hack to add liquidity to the pool using the underlying asset
-    //         // needs to be converted to something like a uniswap NFT token
-        
-    //     PERMIT2.permitTransferFrom(permit, transferDetails, owner, signature);
-
-
-    // }
-
-    // function removeLiquidity(
-    //     address token,
-    //     uint256 amount
-    //     ) public {
-    //     // NOTE: Again this is a hack, and should be a burn type of method
-        
-    //     IERC20(token).transfer(msg.sender, amount);
-    // }
-
-
 
     function getPools() public view returns (OptionPool[] memory) {
         return pools;
@@ -191,13 +169,15 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         uint256[] memory prices = new uint256[](pools.length);
         for (uint256 i = 0; i < pools.length; i++) {
             OptionPool memory pool = pools[i];
-            prices[i] = optionPrice.getPrice(pool.token0, false);
+            IOptionToken option = IOptionToken(pool.optionToken);
+            prices[i] = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false);
         }
         return prices;
     }
 
     function _getOptionPrice(address optionToken, bool inverse) internal view returns (uint256) {
-        return optionPrice.getPrice(optionToken, inverse);
+        IOptionToken option = IOptionToken(optionToken);
+        return optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), inverse);
     }
 
     function getOptionPrice(address optionToken) public view returns (CurrentOptionPrice memory) {

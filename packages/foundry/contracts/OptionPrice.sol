@@ -231,14 +231,35 @@ contract OptionPrice {
 
 
     // Returns the price of the token (18 decimals)
-    function getPrice(address token, bool inverse) external view returns (uint256) {
-        IOptionToken optionToken = IOptionToken(token);
-        uint256 expiration = optionToken.expirationDate();
-        uint256 strike = optionToken.strike();
-        IERC20 collateral = optionToken.collateral();
-        bool optionType = optionToken.isPut();
+    // function getPrice(address token, bool inverse) external view returns (uint256) {
+    //     IOptionToken optionToken = IOptionToken(token);
+    //     uint256 expiration = optionToken.expirationDate();
+    //     uint256 strike = optionToken.strike();
+    //     IERC20 collateral = optionToken.collateral();
+    //     bool optionType = optionToken.isPut();
 
-        uint256 collateralPrice = PriceMath.getPrice(IUniswapV3Pool(pool[address(collateral)]));
+    //     address wethusd = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
+
+    //     uint256 collateralPrice = PriceMath.getPrice(IUniswapV3Pool(wethusd));
+
+    //     uint256 price = blackScholesPrice(
+    //         collateralPrice, 
+    //         strike, 
+    //         expiration - block.timestamp, 
+    //         0.2 * 1e18, 
+    //         0.05 * 1e18, 
+    //         optionType
+    //         );
+
+    //     return inverse ? 1e36 / price : price ;
+    // }
+
+
+    // Returns the price of the token (18 decimals)
+    function getPrice(address uniPool, uint256 strike, uint256 expiration, bool optionType, bool inverse) external view returns (uint256) {
+
+
+        uint256 collateralPrice = PriceMath.getPrice(IUniswapV3Pool(uniPool));
 
         uint256 price = blackScholesPrice(
             collateralPrice, 
