@@ -19,7 +19,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {OptionPrice} from "./OptionPrice.sol";
+import {OptionPrice, PriceMath, IUniswapV3Pool} from "./OptionPrice.sol";
 
 import {IOptionToken} from "./IOptionToken.sol";
 import {IPermit2} from "./IPermit2.sol";
@@ -44,6 +44,7 @@ struct CurrentOptionPrice {
     address underlying;
     address optionToken;
     uint256 price;
+    uint256 collateralPrice;
 }
 
 contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
@@ -71,6 +72,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
 
     mapping(address => bool) public options;
     OptionPool[] public pools;
+    PriceMath priceMath;
 
     constructor(IPoolManager _poolManager, address permit2, IERC20 _underlying, string memory _name, string memory _symbol, address _pricePool) 
     BaseHook(_poolManager) 
@@ -83,6 +85,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         pricePool = _pricePool;
         cash = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         zeroOrOne = address(underlying) > address(cash);
+        priceMath = new PriceMath();
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -123,9 +126,10 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         require(params.amountSpecified < 0, "amountSpecified must be negative");
         uint256 amount = uint256(-params.amountSpecified);
         int128 amount_ = int128(int256(amount));
+        uint256 collateralPrice = priceMath.getPrice(IUniswapV3Pool(pricePool), zeroOrOne);
         if (params.zeroForOne) {
             
-            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
+            uint256 price = optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), false);
             uint256 collateralAmount = (amount * price) / 1e18;
             int128 collateralAmount_ = int128(int256(collateralAmount));
             require(collateralAmount <= option.balanceOf(address(this)), "Insufficient optionToken balance");
@@ -136,7 +140,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             poolManager.burn(address(this), key.currency1.toId(), collateralAmount);
             return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
-            uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
+            uint256 price = optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), true);
             uint256 tokenBAmount = Math.mulDiv(amount, price, 1e18);
             int128 tokenBAmount_ = int128(int256(tokenBAmount));
             BeforeSwapDelta delta = toBeforeSwapDelta(tokenBAmount_, -amount_);
@@ -171,23 +175,28 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
 
     function getPrices() public view returns (uint256[] memory) {
         uint256[] memory prices = new uint256[](pools.length);
+        uint256 collateralPrice = priceMath.getPrice(IUniswapV3Pool(pricePool), zeroOrOne);
         for (uint256 i = 0; i < pools.length; i++) {
             OptionPool memory pool = pools[i];
             IOptionToken option = IOptionToken(pool.optionToken);
-            prices[i] = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
+            prices[i] = optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), false);
         }
         return prices;
     }
 
     function _getOptionPrice(address optionToken, bool inverse) internal view returns (uint256) {
         IOptionToken option = IOptionToken(optionToken);
-        return optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), inverse, zeroOrOne);
+        uint256 collateralPrice = priceMath.getPrice(IUniswapV3Pool(pricePool), zeroOrOne);
+        return optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), inverse);
     }
 
     function getOptionPrice(address optionToken) public view returns (CurrentOptionPrice memory) {
         IOptionToken option = IOptionToken(optionToken);
-        uint256 price = optionPrice.getPrice(pricePool, option.strike(), option.expirationDate(), option.isPut(), false, zeroOrOne);
+        uint256 collateralPrice = priceMath.getPrice(IUniswapV3Pool(pricePool), zeroOrOne);
+
+        uint256 price = optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), false);
         return CurrentOptionPrice({
+            collateralPrice: collateralPrice,
             underlying: address(underlying),
             optionToken: optionToken,
             price: price

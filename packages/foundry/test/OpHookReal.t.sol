@@ -115,7 +115,7 @@ contract OpHookRealTest is Test {
             MockOptionToken option = new MockOptionToken("OPT", "OPT", wethAddress, usdcAddress);
 
             opHook.initPool(address(option), usdcAddress, 0);
-            
+
             
             console.log("OpHook deployed at:", address(opHook));
             console.log("Intended address:", hookAddress);
@@ -124,7 +124,7 @@ contract OpHookRealTest is Test {
         }
     }
     
-    function testRealTokenSetup() public {
+    function testRealTokenSetup() public view {
         if (wethAddress == address(0)) {
             console.log("Skipping real token tests - no real tokens configured for this network");
             return;
@@ -372,4 +372,139 @@ contract OpHookRealTest is Test {
         
         console.log("=== Real Token LP Creation Complete ===");
     }
+
+
+
+    // function testInitPool() public {
+    //     // Test initializing a pool with option token and cash
+    //     uint24 fee = 0; // 0.3% fee
+        
+    //     // Check initial state - no pools
+    //     assertEq(opHook.getPools().length, 0);
+        
+    //     // Initialize a pool
+    //     opHook.initPool(address(mockOptionToken), address(usdc), fee);
+        
+    //     // Verify pool was added
+    //     assertEq(opHook.getPools().length, 1, "Pool should be added to the pools array");
+        
+    //     // Test that we can initialize multiple pools
+    //     MockOptionToken mockOptionToken2 = new MockOptionToken("MockOption2", "MOPT2", MAINNET_WETH, MAINNET_USDC);
+    //     opHook.initPool(address(mockOptionToken2), address(usdc), fee);
+    //     assertEq(opHook.getPools().length, 2, "Second pool should be added");
+    // }
+
+    // function testERC4626Deposit() public {
+    //     // Test ERC4626 deposit functionality
+    //     uint256 depositAmount = 100 * 1e18; // 100 WETH
+    //     address user = address(0x123);
+        
+    //     // Give user some WETH  
+    //     deal(address(weth), user, depositAmount);
+        
+    //     // Approve the hook to spend WETH
+    //     vm.prank(user);
+    //     weth.approve(address(opHook), depositAmount);
+        
+    //     // Get initial balances
+    //     uint256 initialWethBalance = weth.balanceOf(user);
+    //     uint256 initialShares = opHook.balanceOf(user);
+        
+    //     // Deposit WETH to the vault
+    //     vm.prank(user);
+    //     uint256 sharesReceived = opHook.deposit(depositAmount, user);
+        
+    //     // Verify deposit
+    //     assertEq(weth.balanceOf(user), initialWethBalance - depositAmount, "User WETH should be debited");
+    //     assertEq(opHook.balanceOf(user), initialShares + sharesReceived, "User should receive shares");
+    //     assertEq(opHook.totalAssets(), depositAmount, "Vault should hold deposited assets");
+    //     assertEq(opHook.totalSupply(), sharesReceived, "Total shares should equal issued shares");
+        
+    //     // Verify 1:1 ratio initially (no yield yet)
+    //     assertEq(sharesReceived, depositAmount, "Should receive 1:1 shares initially");
+    // }
+
+    // function testERC4626Withdraw() public {
+    //     // First deposit some assets
+    //     uint256 depositAmount = 100 * 1e18;
+    //     address user = address(0x123);
+        
+    //     // Setup: deposit assets
+    //     deal(address(weth), user, depositAmount);
+    //     vm.prank(user);
+    //     weth.approve(address(opHook), depositAmount);
+    //     vm.prank(user);
+    //     uint256 shares = opHook.deposit(depositAmount, user);
+        
+    //     // Now test withdrawal
+    //     uint256 withdrawAmount = 50 * 1e18; // Withdraw 50 WETH
+    //     uint256 initialWethBalance = weth.balanceOf(user);
+        
+    //     vm.prank(user);
+    //     uint256 sharesBurned = opHook.withdraw(withdrawAmount, user, user);
+        
+    //     // Verify withdrawal
+    //     assertEq(weth.balanceOf(user), initialWethBalance + withdrawAmount, "User should receive WETH");
+    //     assertEq(opHook.balanceOf(user), shares - sharesBurned, "User shares should be reduced");
+    //     assertEq(opHook.totalAssets(), depositAmount - withdrawAmount, "Vault assets should be reduced");
+    // }
+
+    // function testERC4626MintRedeem() public {
+    //     // Test ERC4626 mint and redeem functionality
+    //     uint256 sharesToMint = 100 * 1e18; // 100 shares
+    //     address user = address(0x456);
+        
+    //     // Give user enough WETH (more than needed for minting)
+    //     deal(address(weth), user, 200 * 1e18);
+        
+    //     // Approve the hook to spend WETH
+    //     vm.prank(user);
+    //     weth.approve(address(opHook), 200 * 1e18);
+        
+    //     // Test mint
+    //     vm.prank(user);
+    //     uint256 assetsUsed = opHook.mint(sharesToMint, user);
+        
+    //     // Verify mint (should be 1:1 initially)
+    //     assertEq(opHook.balanceOf(user), sharesToMint, "User should receive requested shares");
+    //     assertEq(assetsUsed, sharesToMint, "Should use 1:1 assets initially");
+    //     assertEq(opHook.totalSupply(), sharesToMint, "Total supply should equal minted shares");
+        
+    //     // Test redeem
+    //     uint256 sharesToRedeem = 50 * 1e18; // Redeem 50 shares
+    //     uint256 initialWethBalance = weth.balanceOf(user);
+        
+    //     vm.prank(user);
+    //     uint256 assetsReceived = opHook.redeem(sharesToRedeem, user, user);
+        
+    //     // Verify redeem
+    //     assertEq(opHook.balanceOf(user), sharesToMint - sharesToRedeem, "User shares should be reduced");
+    //     assertEq(weth.balanceOf(user), initialWethBalance + assetsReceived, "User should receive WETH");
+    //     assertEq(assetsReceived, sharesToRedeem, "Should receive 1:1 assets initially");
+    // }
+    
+    // function testGetVaultStats() public {
+    //     // Test getVaultStats function
+    //     (uint256 totalAssets_, uint256 totalShares_, uint256 exchangeRate_, uint256 utilizationRate_) = opHook.getVaultStats();
+        
+    //     // Initially should be empty
+    //     assertEq(totalAssets_, 0, "No assets initially");
+    //     assertEq(totalShares_, 0, "No shares initially");
+    //     assertEq(exchangeRate_, 1e18, "Exchange rate should be 1e18 initially");
+    //     assertEq(utilizationRate_, 0, "Utilization rate should be 0");
+        
+    //     // After deposit, stats should update
+    //     uint256 depositAmount = 100 * 1e18;
+    //     address user = address(0x789);
+    //     deal(address(weth), user, depositAmount);
+    //     vm.prank(user);
+    //     weth.approve(address(opHook), depositAmount);
+    //     vm.prank(user);
+    //     opHook.deposit(depositAmount, user);
+        
+    //     (totalAssets_, totalShares_, exchangeRate_,) = opHook.getVaultStats();
+    //     assertEq(totalAssets_, depositAmount, "Total assets should equal deposit");
+    //     assertEq(totalShares_, depositAmount, "Total shares should equal deposit");
+    //     assertEq(exchangeRate_, 1e18, "Exchange rate should remain 1e18");
+    // }
 }
