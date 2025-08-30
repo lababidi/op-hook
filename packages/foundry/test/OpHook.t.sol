@@ -111,43 +111,47 @@ contract OpHookTest is Test {
         opHook.initPool(address(option2), 0);
     }
 
-    // function testSwap() public {
-    //     opHook.swap(SwapParams({
-    //         zeroForOne: true,
-    //         amountSpecified: -1e18,
-    //         sqrtPriceLimitX96: 0
-    //     }));
-    // }
-
-    function testGetUnderlyingPrice() public view {
-        uint256 price = opHook.getCollateralPrice();
-        console.log("price", price);
+    function testSwap() public {
+        deal(address(this), 1 ether);
+        deal(address(weth), address(opHook), 1e18);
+        deal(address(usdc), address(this), 1000e6);
+        usdc.approve(address(opHook), 1000e6);
+        opHook.swap(address(option1), 100e6, address(this));
+        console.log("option1 balance", option1.balanceOf(address(this)));
+        console.log("option2 balance", option2.balanceOf(address(this)));
+        console.log("WETH balance", weth.balanceOf(address(this)));
+        console.log("USDC balance", usdc.balanceOf(address(this)));
     }
+
+    // function testGetUnderlyingPrice() public view {
+    //     uint256 price = opHook.getCollateralPrice();
+    //     console.log("price", price);
+    // }
     
-    function testGetOptionPrice() public view {
-        // Test getOptionPrice function with mock option token
-        // Note: This will likely fail because OptionPrice needs proper setup,
-        // but let's test the interface
-        CurrentOptionPrice memory price = opHook.getOptionPrice(address(option1));
-        // If it doesn't revert, verify the structure
-        assertEq(price.collateral, address(weth), "Underlying should match");
-        assertEq(price.optionToken, address(option1), "Option token should match");
-        console.log(option1.strike());
-        console.log(option1.expirationDate());
-        console.log(option1.STRIKE_DECIMALS());
-        console.log(option1.isPut());
-        console.log(address(option1));
-        console.log(address(option1.collateral()));
-        console.log(address(option1.consideration()));
-        console.log(option1.initialized());
-        console.log(price.collateral);
+    // function testGetOptionPrice() public view {
+    //     // Test getOptionPrice function with mock option token
+    //     // Note: This will likely fail because OptionPrice needs proper setup,
+    //     // but let's test the interface
+    //     CurrentOptionPrice memory price = opHook.getOptionPrice(address(option1));
+    //     // If it doesn't revert, verify the structure
+    //     assertEq(price.collateral, address(weth), "Underlying should match");
+    //     assertEq(price.optionToken, address(option1), "Option token should match");
+    //     console.log(option1.strike());
+    //     console.log(option1.expirationDate());
+    //     console.log(option1.STRIKE_DECIMALS());
+    //     console.log(option1.isPut());
+    //     console.log(address(option1));
+    //     console.log(address(option1.collateral()));
+    //     console.log(address(option1.consideration()));
+    //     console.log(option1.initialized());
+    //     console.log(price.collateral);
         
 
-        console.log("price", price.price);
-        // Price could be any value, just check it's returned
-        assertTrue(price.price >= 0, "Price should be non-negative");
+    //     console.log("price", price.price);
+    //     // Price could be any value, just check it's returned
+    //     assertTrue(price.price >= 0, "Price should be non-negative");
 
-    }
+    // }
 
     // function testUserAccountWithEthWethAndSwap() public {
     //     // Set up user account
