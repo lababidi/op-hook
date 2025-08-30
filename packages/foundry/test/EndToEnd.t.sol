@@ -153,7 +153,7 @@ contract EndToEndTest is Test {
 
         // Deploy the hook using CREATE2
         vm.startBroadcast();
-        OpHook opHook = new OpHook{salt: salt}(poolManager, MAINNET_PERMIT2, token1, "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
+        OpHook opHook = new OpHook{salt: salt}(poolManager, MAINNET_PERMIT2, token1, token2, "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
         poolManager.unlock("");
         poolManager.initialize(PoolKey({
             currency0: Currency.wrap(token1),

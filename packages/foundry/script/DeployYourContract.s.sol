@@ -36,6 +36,7 @@ contract DeployYourContract is ScaffoldETHDeploy {
         address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
         address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
         address WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
+        address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         
         bytes memory constructorArgs = abi.encode(address(poolManager));
 
@@ -54,7 +55,7 @@ contract DeployYourContract is ScaffoldETHDeploy {
         console.log("Using salt:", uint256(salt));
 
         // Deploy the hook using CREATE2
-        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, (weth), "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
+        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, (weth), (usdc), "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
         require(address(hook) == hookAddress, "OpHook: hook address mismatch");
         
         // Log pools information

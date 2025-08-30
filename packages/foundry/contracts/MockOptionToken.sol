@@ -25,10 +25,10 @@ contract MockOptionToken is ERC20, IOptionToken {
     address private _permit2;
     bool private _initialized;
     
-    constructor(string memory name_, string memory symbol_, address collateral_, address consideration_) ERC20(name_, symbol_) {
-        _expirationDate = block.timestamp + 30 days;
-        _strike = 4000 * 1e18; // $2000 strike
-        _isPut = false; // Call option
+    constructor(string memory name_, string memory symbol_, address collateral_, address consideration_, uint256 expirationDate_, uint256 strike_, bool isPut_) ERC20(name_, symbol_) {
+        _expirationDate = expirationDate_;
+        _strike = strike_;
+        _isPut = isPut_;
         _collateral = IERC20(collateral_);
         _consideration = IERC20(consideration_);
         _initialized = true;

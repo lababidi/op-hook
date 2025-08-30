@@ -63,7 +63,8 @@ contract OpHookTest is Test {
     IWETH9 public weth;
     address weth_ = MAINNET_WETH;
     address usdc_ = MAINNET_USDC;
-    MockOptionToken public mockOptionToken;
+    MockOptionToken public option1;
+    MockOptionToken public option2;
     address optionAddress;
     
     
@@ -71,14 +72,15 @@ contract OpHookTest is Test {
         // Deploy mock tokens
         weth = IWETH9(MAINNET_WETH);
         usdc = IERC20(MAINNET_USDC);
-        mockOptionToken = new MockOptionToken("MockOption", "MOPT", weth_, usdc_);
-        optionAddress = address(mockOptionToken);
+        option1 = new MockOptionToken("WETH-4000", "MOPT4", weth_, usdc_, block.timestamp + 30 days, 4000 * 1e18, false);
+        option2 = new MockOptionToken("WETH-5000", "MOPT5", weth_, usdc_, block.timestamp + 30 days, 5000 * 1e18, false);
         // Deploy OpHook using HookMiner to get correct address
         uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG;
         bytes memory constructorArgs = abi.encode(
             IPoolManager(MOCK_POOL_MANAGER),
             MOCK_PERMIT2,
-            IERC20(address(weth)),
+            address(weth),
+            address(usdc),
             "WethOptionPoolVault",
             "ETHCC",
             WETH_UNI_POOL
@@ -95,6 +97,7 @@ contract OpHookTest is Test {
             IPoolManager(MOCK_POOL_MANAGER),
             MOCK_PERMIT2,
             address(weth),
+            address(usdc),
             "WethOptionPoolVault",
             "ETHCC",
             WETH_UNI_POOL
@@ -103,6 +106,9 @@ contract OpHookTest is Test {
 
         console.log("Address", hookAddress);
         console.log("Address", address(opHook));
+
+        opHook.initPool(address(option1), 0);
+        opHook.initPool(address(option2), 0);
     }
 
     // function testSwap() public {
@@ -122,18 +128,18 @@ contract OpHookTest is Test {
         // Test getOptionPrice function with mock option token
         // Note: This will likely fail because OptionPrice needs proper setup,
         // but let's test the interface
-        CurrentOptionPrice memory price = opHook.getOptionPrice(address(mockOptionToken));
+        CurrentOptionPrice memory price = opHook.getOptionPrice(address(option1));
         // If it doesn't revert, verify the structure
         assertEq(price.collateral, address(weth), "Underlying should match");
-        assertEq(price.optionToken, address(mockOptionToken), "Option token should match");
-        console.log(mockOptionToken.strike());
-        console.log(mockOptionToken.expirationDate());
-        console.log(mockOptionToken.STRIKE_DECIMALS());
-        console.log(mockOptionToken.isPut());
-        console.log(address(mockOptionToken));
-        console.log(address(mockOptionToken.collateral()));
-        console.log(address(mockOptionToken.consideration()));
-        console.log(mockOptionToken.initialized());
+        assertEq(price.optionToken, address(option1), "Option token should match");
+        console.log(option1.strike());
+        console.log(option1.expirationDate());
+        console.log(option1.STRIKE_DECIMALS());
+        console.log(option1.isPut());
+        console.log(address(option1));
+        console.log(address(option1.collateral()));
+        console.log(address(option1.consideration()));
+        console.log(option1.initialized());
         console.log(price.collateral);
         
 

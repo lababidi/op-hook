@@ -92,7 +92,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     OptionPool[] public pools;
     mapping(address => bool) public options;
 
-    constructor(IPoolManager _poolManager, address permit2, address _collateral, string memory _name, string memory _symbol, address _pricePool) 
+    constructor(IPoolManager _poolManager, address permit2, address _collateral, address _cash, string memory _name, string memory _symbol, address _pricePool) 
     BaseHook(_poolManager) 
     ERC4626(IERC20(_collateral)) 
     ERC20(_name, _symbol) 
@@ -101,7 +101,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         PERMIT2 = IPermit2(permit2);
 
         collateralToken = _collateral;
-        cashToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        cashToken = _cash;
         collateral = IERC20(_collateral);
         cash = IERC20(cashToken);
 
