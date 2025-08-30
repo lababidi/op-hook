@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-import "./IOptionToken.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "forge-std/console.sol";
-
 
 interface IUniswapV3Pool {
     function token0() external view returns (address);
@@ -18,63 +13,10 @@ interface IUniswapV3Pool {
         uint8 feeProtocol, bool unlocked
     );
 }
-    
-
-contract PriceMath {
-
-    function squarePrice(uint160 sqrtPriceX96) internal pure returns (uint256) {
-        uint256 sqrtPriceX32 = (uint256(sqrtPriceX96)>>64);
-        // priceX96 is Q64.96, so we square to get the ratio
-        uint256 priceX64 = uint256(sqrtPriceX32) * uint256(sqrtPriceX32);
-        return priceX64;
-    }
-
-    // Returns price of 1 WETH in USDC with 18 decimals precision
-    // How much token1 you need to buy 1 token0 is sqrtPriceX96
-    function getPrice(IUniswapV3Pool pool, bool zeroOrOne) public view returns (uint256 price) {
-        uint8 decimals0 = IERC20Metadata(pool.token0()).decimals();
-        uint8 decimals1 = IERC20Metadata(pool.token1()).decimals();
-        (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
-        uint256 priceX64 = squarePrice(sqrtPriceX96);
-        uint256 power = 10 ** (decimals1 >= decimals0 ? decimals1 - decimals0 : decimals0 - decimals1);
-
-        // Calculate price with proper scaling
-        // priceX192 is in Q192.192 format, we need to extract the integer part
-        // uint256 priceX96 = priceX64 >> 96; // Convert from Q192.192 to Q96.96
-        price = (priceX64 * 10**18) >> 64; // Convert from Q96.96 to 1e18 fixed point
-        
-        if (decimals1 >= decimals0) {
-            price = (price/power);
-        } else {
-            price = (price*power);
-        }
-        if (zeroOrOne) {
-            require(price > 0, "Price cannot be zero for inverse calculation");
-            price = 1e36 / price;
-        }
-
-        return price;
-    }
-}
-
-
+  
 contract OptionPrice {
     // For demonstration, we use a simple mapping to store prices for each token address.
     // In production, this would be replaced by a real oracle or pricing logic.
-
-    mapping(address => address) public pool; //we're sticking to USDC for now and WETH
-    address poolAddress;
-    PriceMath public priceMath;
-
-    constructor(address poolAddress_) {
-        poolAddress = poolAddress_;
-        priceMath = new PriceMath();
-    }
-
-    function setPool(address collateral, address poolAddress_) external {
-        pool[collateral] = poolAddress_;
-    }
-
     
     // Black-Scholes option pricing formula (returns price with 18 decimals)
     // underlying: price of the underlying asset (18 decimals)
@@ -300,6 +242,4 @@ contract OptionPrice {
         }
         return price;
     }
-
-
 }

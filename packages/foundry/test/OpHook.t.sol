@@ -32,7 +32,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {OptionPrice, PriceMath, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
+import {OptionPrice, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
 
 import {IOptionToken} from "../contracts/IOptionToken.sol";
 import {IPermit2} from "../contracts/IPermit2.sol";
@@ -65,9 +65,6 @@ contract OpHookTest is Test {
     address usdc_ = MAINNET_USDC;
     MockOptionToken public mockOptionToken;
     address optionAddress;
-
-
-    PriceMath priceMath;
     
     
     function setUp() public {
@@ -97,22 +94,27 @@ contract OpHookTest is Test {
         opHook = new OpHook{salt: salt}(
             IPoolManager(MOCK_POOL_MANAGER),
             MOCK_PERMIT2,
-            weth,
+            address(weth),
             "WethOptionPoolVault",
             "ETHCC",
             WETH_UNI_POOL
         );
 
 
-        priceMath = new PriceMath();
         console.log("Address", hookAddress);
         console.log("Address", address(opHook));
     }
 
-
+    // function testSwap() public {
+    //     opHook.swap(SwapParams({
+    //         zeroForOne: true,
+    //         amountSpecified: -1e18,
+    //         sqrtPriceLimitX96: 0
+    //     }));
+    // }
 
     function testGetUnderlyingPrice() public view {
-        uint256 price = priceMath.getPrice(IUniswapV3Pool(opHook.pricePool()), true);
+        uint256 price = opHook.getCollateralPrice();
         console.log("price", price);
     }
     
@@ -122,7 +124,7 @@ contract OpHookTest is Test {
         // but let's test the interface
         CurrentOptionPrice memory price = opHook.getOptionPrice(address(mockOptionToken));
         // If it doesn't revert, verify the structure
-        assertEq(price.underlying, address(weth), "Underlying should match");
+        assertEq(price.collateral, address(weth), "Underlying should match");
         assertEq(price.optionToken, address(mockOptionToken), "Option token should match");
         console.log(mockOptionToken.strike());
         console.log(mockOptionToken.expirationDate());
@@ -132,7 +134,7 @@ contract OpHookTest is Test {
         console.log(address(mockOptionToken.collateral()));
         console.log(address(mockOptionToken.consideration()));
         console.log(mockOptionToken.initialized());
-        console.log(price.underlying);
+        console.log(price.collateral);
         
 
         console.log("price", price.price);

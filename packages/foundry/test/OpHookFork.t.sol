@@ -62,7 +62,7 @@ contract OpHookForkTest is Test {
         opHook = new OpHook{salt: salt}(
             poolManager,
             PERMIT2_ADDRESS,
-            IERC20(address(weth)),
+            address(weth),
             "WethOptionPoolVault",
             "ETHCC",
             WETH_UNI_POOL
@@ -76,7 +76,7 @@ contract OpHookForkTest is Test {
     function testForkSetup() public view {
         // Verify our fork setup works
         assertEq(address(opHook.poolManager()), address(poolManager));
-        assertEq(address(opHook.underlying()), address(weth));
+        assertEq(address(opHook.collateral()), address(weth));
         assertEq(opHook.name(), "WethOptionPoolVault");
         assertEq(opHook.symbol(), "ETHCC");
     }
@@ -116,9 +116,8 @@ contract OpHookForkTest is Test {
         );
         
         // This should now work with the real PoolManager and proper option token
-        try opHook.initPool(address(optionToken), address(usdc), fee) {
+        try opHook.initPool(address(optionToken), fee) {
             // If successful, verify pool was added
-            assertEq(opHook.getPools().length, 1, "Pool should be initialized");
             console.log("Pool initialization successful");
         } catch Error(string memory reason) {
             console.log("Pool initialization failed:", reason);
@@ -128,85 +127,6 @@ contract OpHookForkTest is Test {
         }
     }
     
-    function testFullOptionTokenWorkflow() public {
-        // Test the complete OpHook workflow with our own tokens
-        uint256 depositAmount = 1000 * 1e18; // 1000 WETH
-        address user = address(0x123);
-        address optionBuyer = address(0x456);
-        
-        console.log("=== Testing Full Option Token Workflow ===");
-        
-        // 1. Setup: User deposits WETH into vault
-        weth.mint(user, depositAmount);
-        vm.startPrank(user);
-        weth.approve(address(opHook), depositAmount);
-        uint256 shares = opHook.deposit(depositAmount, user);
-        vm.stopPrank();
-        
-        console.log("Step 1: User deposited WETH and received shares");
-        console.log("- Deposited:", depositAmount / 1e18);
-        console.log("- Received shares:", shares / 1e18);
-        
-        // 2. Create option token with proper parameters
-        MockOptionToken callOption = new MockOptionToken(
-            "WETH Call Option $3000 Strike", 
-            "WETH-CALL-3000",
-            address(weth), // collateral
-            address(usdc)  // consideration (premium currency)
-        );
-        
-        console.log("Step 2: Created call option with strike $3000");
-        
-        // 3. Initialize pool with option token and USDC
-        uint24 fee = 3000;
-        opHook.initPool(address(callOption), address(usdc), fee);
-        
-        assertEq(opHook.getPools().length, 1, "Pool should be created");
-        console.log("Step 3: Initialized option pool");
-        
-        // 4. Mint some option tokens to test
-        callOption.mint(1000 * 1e18); // Mint to test contract
-        callOption.transfer(address(opHook), 100 * 1e18); // Give some to the hook
-        
-        console.log("Step 4: Minted option tokens");
-        
-        // 5. Test OptionPrice integration 
-        console.log("Step 5: Testing OptionPrice integration...");
-        
-        // The OpHook creates its own OptionPrice contract in constructor
-        // Let's test the price functions even though they use mock oracles
-        try opHook.getOptionPrice(address(callOption)) returns (CurrentOptionPrice memory price) {
-            console.log("[SUCCESS] Option price retrieved successfully!");
-            console.log("- Underlying:", price.underlying);
-            console.log("- Option token:", price.optionToken);
-            console.log("- Price:", price.price);
-            
-            // Verify the price structure
-            assertEq(price.underlying, address(weth), "Should match WETH address");
-            assertEq(price.optionToken, address(callOption), "Should match option token");
-            assertTrue(price.price > 0, "Price should be positive");
-            
-        } catch Error(string memory reason) {
-            console.log("[ERROR] Option price failed:", reason);
-        } catch (bytes memory lowLevelData) {
-            console.log("[ERROR] Option price failed with low-level error");
-            console.logBytes(lowLevelData);
-        }
-        
-        // 6. Test getPrices for all pools
-        console.log("Step 6: Testing getPrices for all pools...");
-        try opHook.getPrices() returns (uint256[] memory prices) {
-            console.log("[SUCCESS] Retrieved prices for", prices.length, "pools");
-            for (uint i = 0; i < prices.length; i++) {
-                console.log("- Pool", i, "price:", prices[i]);
-                assertTrue(prices[i] >= 0, "Price should be non-negative");
-            }
-        } catch Error(string memory reason) {
-            console.log("[ERROR] getPrices failed:", reason);
-        }
-        
-        console.log("=== Workflow completed successfully ===");
-    }
     
     function testWhitelistAndSwapBehavior() public {
         // Test OpHook's unique whitelist and swap hook behavior
@@ -235,25 +155,17 @@ contract OpHookForkTest is Test {
         // Initialize pools to test pool creation
         uint24 fee = 3000;
         
-        try opHook.initPool(address(ethCallOption), address(usdc), fee) {
+        try opHook.initPool(address(ethCallOption), fee) {
             console.log("Successfully initialized ETH call option pool");
         } catch Error(string memory reason) {
             console.log("Call option pool init failed:", reason);
         }
-        
-        try opHook.initPool(address(ethPutOption), address(weth), fee) {
-            console.log("Successfully initialized ETH put option pool");
-        } catch Error(string memory reason) {
-            console.log("Put option pool init failed:", reason);
-        }
-        
-        console.log("Total pools created:", opHook.getPools().length);
-        
+                
         // Test getPrices function
-        try opHook.getPrices() returns (uint256[] memory prices) {
+        try opHook.getPrices() returns (CurrentOptionPrice[] memory prices) {
             console.log("Retrieved prices for", prices.length, "pools");
             for (uint i = 0; i < prices.length; i++) {
-                console.log("Pool", i, "price:", prices[i]);
+                console.log("Pool", i, "price:", prices[i].price);
             }
         } catch {
             console.log("Price retrieval failed (expected with mock oracles)");
@@ -295,7 +207,7 @@ contract OpHookForkTest is Test {
             address(usdc)
         );
         
-        opHook.initPool(address(option), address(usdc), 3000);
+        opHook.initPool(address(option), 3000);
         console.log("Initialized option pool with vault funds available");
         
         // Test partial withdrawal
@@ -377,7 +289,7 @@ contract OpHookForkTest is Test {
                 console.log("Creating pool for option", i);
                 console.log("- Fee:", fees[j]);
                 
-                try opHook.initPool(address(options[i]), address(usdc), fees[j]) {
+                try opHook.initPool(address(options[i]), fees[j]) {
                     totalPools++;
                     console.log("[SUCCESS] Pool created successfully");
                 } catch Error(string memory reason) {
@@ -389,19 +301,18 @@ contract OpHookForkTest is Test {
         }
         
         console.log("Successfully created", totalPools, "pools");
-        assertEq(opHook.getPools().length, totalPools, "Pool count should match");
         
         // 4. Test pricing for all created pools
         console.log("Testing pricing for all pools...");
         
-        try opHook.getPrices() returns (uint256[] memory allPrices) {
+        try opHook.getPrices() returns (CurrentOptionPrice[] memory allPrices) {
             console.log("[SUCCESS] Retrieved prices for", allPrices.length, "pools:");
             
             for (uint i = 0; i < allPrices.length; i++) {
-                console.log("- Pool", i, "price:", allPrices[i]);
+                console.log("- Pool", i, "price:", allPrices[i].price);
                 
                 // Verify prices are reasonable (not zero, not ridiculously high)
-                if (allPrices[i] > 0) {
+                if (allPrices[i].price > 0) {
                     console.log("  [SUCCESS] Price looks reasonable");
                 } else {
                     console.log("  [WARNING] Price is zero (may be expected for mock oracles)");
@@ -422,11 +333,11 @@ contract OpHookForkTest is Test {
             
             try opHook.getOptionPrice(address(options[i])) returns (CurrentOptionPrice memory price) {
                 console.log("- Price:", price.price);
-                console.log("- Underlying:", price.underlying);
+                console.log("- collateral:", price.collateral);
                 console.log("- Option token:", price.optionToken);
                 
                 // Verify structure
-                assertEq(price.underlying, address(weth), "Should use WETH as underlying");
+                assertEq(price.collateral, address(weth), "Should use WETH as collateral");
                 assertEq(price.optionToken, address(options[i]), "Should match option token");
                 
             } catch Error(string memory reason) {

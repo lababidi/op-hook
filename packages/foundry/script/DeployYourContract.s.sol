@@ -54,11 +54,12 @@ contract DeployYourContract is ScaffoldETHDeploy {
         console.log("Using salt:", uint256(salt));
 
         // Deploy the hook using CREATE2
-        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, IERC20(weth), "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
+        OpHook hook = new OpHook{salt: salt}(IPoolManager(address(poolManager)), permit2, (weth), "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
         require(address(hook) == hookAddress, "OpHook: hook address mismatch");
         
         // Log pools information
-        console.log("Number of pools:", hook.getPools().length);
+        // OptionPool[] memory pools = hook.pools;
+        // console.log("Number of pools:", pools.length);
 
         console.log("OpHook deployed successfully at:", address(hook));
     }

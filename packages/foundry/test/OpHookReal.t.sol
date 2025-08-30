@@ -106,7 +106,7 @@ contract OpHookRealTest is Test {
             opHook = new OpHook{salt: salt}(
                 poolManager,
                 PERMIT2_ADDRESS,
-                weth,
+                address(weth),
                 "Real WETH Option Vault",
                 "rWETH-OPT",
                 WETH_UNI_POOL
@@ -114,7 +114,7 @@ contract OpHookRealTest is Test {
 
             MockOptionToken option = new MockOptionToken("OPT", "OPT", wethAddress, usdcAddress);
 
-            opHook.initPool(address(option), usdcAddress, 0);
+            opHook.initPool(address(option), 0);
 
             
             console.log("OpHook deployed at:", address(opHook));
@@ -131,7 +131,7 @@ contract OpHookRealTest is Test {
         }
         
         // Verify we're using real contracts
-        assertEq(address(opHook.underlying()), wethAddress);
+        assertEq(address(opHook.collateral()), wethAddress);
         assertEq(opHook.name(), "Real WETH Option Vault");
         assertEq(opHook.symbol(), "rWETH-OPT");
         
@@ -249,19 +249,19 @@ contract OpHookRealTest is Test {
             usdcAddress  // Real USDC
         );
         
-        console.log("Created option token with real underlying assets");
+        console.log("Created option token with real collateral assets");
         
         // Test OpHook's integrated OptionPrice contract
         console.log("Testing OpHook's OptionPrice integration...");
         
         try opHook.getOptionPrice(address(realOption)) returns (CurrentOptionPrice memory price) {
             console.log("[SUCCESS] OpHook OptionPrice working!");
-            console.log("- Underlying (real WETH):", price.underlying);
+            console.log("- Collateral (real WETH):", price.collateral);
             console.log("- Option token:", price.optionToken);
             console.log("- Calculated price:", price.price);
             
             // Verify it uses real WETH address
-            assertEq(price.underlying, wethAddress, "Should use real WETH address");
+            assertEq(price.collateral, wethAddress, "Should use real WETH address");
             assertEq(price.optionToken, address(realOption), "Should match option token");
             
         } catch Error(string memory reason) {
@@ -273,14 +273,14 @@ contract OpHookRealTest is Test {
         console.log("Creating LP with real token integration...");
         uint24 fee = 3000; // 0.3%
         
-        try opHook.initPool(address(realOption), usdcAddress, fee) {
+        try opHook.initPool(address(realOption), fee) {
             console.log("[SUCCESS] LP created with real tokens!");
             
             // Test pricing for the created pool
-            try opHook.getPrices() returns (uint256[] memory prices) {
+            try opHook.getPrices() returns (CurrentOptionPrice[] memory prices) {
                 console.log("[SUCCESS] Got prices for", prices.length, "pools");
                 for (uint i = 0; i < prices.length; i++) {
-                    console.log("- Pool", i, "price:", prices[i]);
+                    console.log("- Pool", i, "price:", prices[i].price);
                 }
             } catch Error(string memory reason) {
                 console.log("[ERROR] Getting pool prices failed:", reason);
@@ -328,7 +328,7 @@ contract OpHookRealTest is Test {
             "Real ETH Put $2800", "rETH-P-2800", usdcAddress, wethAddress
         );
         
-        console.log("Created 3 option tokens with real underlying assets");
+        console.log("Created 3 option tokens with real collateral assets");
         
         // Initialize pools for each
         uint24[] memory fees = new uint24[](2);
@@ -342,7 +342,7 @@ contract OpHookRealTest is Test {
                 console.log("Creating pool for", realOptions[i].name());
                 console.log("- Fee (bps):", fees[j]);
                 
-                try opHook.initPool(address(realOptions[i]), usdcAddress, fees[j]) {
+                try opHook.initPool(address(realOptions[i]), fees[j]) {
                     poolsCreated++;
                     console.log("[SUCCESS] Pool created successfully!");
                 } catch Error(string memory reason) {
@@ -352,7 +352,6 @@ contract OpHookRealTest is Test {
         }
         
         console.log("Total pools created:", poolsCreated);
-        assertEq(opHook.getPools().length, poolsCreated, "Pool count should match created count");
         
         // Test pricing with real token context
         console.log("Testing pricing in real token context...");
@@ -362,7 +361,7 @@ contract OpHookRealTest is Test {
             
             try opHook.getOptionPrice(address(realOptions[i])) returns (CurrentOptionPrice memory price) {
                 console.log("- Price:", price.price);
-                assertTrue(price.underlying == wethAddress, "Should use real WETH");
+                assertTrue(price.collateral == wethAddress, "Should use real WETH");
                 assertTrue(price.optionToken == address(realOptions[i]), "Should match option");
                 
             } catch Error(string memory reason) {

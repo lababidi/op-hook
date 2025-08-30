@@ -98,7 +98,7 @@ contract EndToEndTest is Test {
         // In production, you would use: vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 19000000);
         
         // Deploy the option price contract for testing
-        optionPrice = new OptionPrice(WETH_UNI_POOL);
+        optionPrice = new OptionPrice();
         // fork mainnet here
         // vm.createSelectFork("https://rpc.flashbots.net");
         vm.createSelectFork("https://ethereum-sepolia-rpc.publicnode.com");
@@ -153,7 +153,7 @@ contract EndToEndTest is Test {
 
         // Deploy the hook using CREATE2
         vm.startBroadcast();
-        OpHook opHook = new OpHook{salt: salt}(poolManager, MAINNET_PERMIT2, IERC20(token1), "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
+        OpHook opHook = new OpHook{salt: salt}(poolManager, MAINNET_PERMIT2, token1, "WethOptionPoolVault", "ETHCC", WETH_UNI_POOL);
         poolManager.unlock("");
         poolManager.initialize(PoolKey({
             currency0: Currency.wrap(token1),

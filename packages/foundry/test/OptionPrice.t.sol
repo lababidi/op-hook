@@ -9,7 +9,7 @@ contract OptionPriceTest is Test {
     OptionPrice public optionPrice;
 
     function setUp() public {
-        optionPrice = new OptionPrice(WETH_UNI_POOL);
+        optionPrice = new OptionPrice();
     }
 
     // expNeg function tests
