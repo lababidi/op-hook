@@ -58,6 +58,9 @@ struct Amount {
     uint256 collateralPrice;
     uint256 price;
     address option;
+    Currency cashCurrency;
+    Currency optionCurrency;
+    bool cashForOption;
 }
 
 contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
@@ -132,12 +135,23 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             afterRemoveLiquidityReturnDelta: false
         });
     }
-    function calculateValues(address token0, address token1, int256 amountSpecified) internal view returns (Amount memory amounts){
+    function calculateValues(Currency token0, Currency token1, int256 amountSpecified, bool zeroForOne) internal view returns (Amount memory amounts){
         address option;
-        if (options[token1]){
-            option = token1;
-        } else if (options[token0]){
-            option = token0;
+        Currency optionCurrency;
+        Currency cashCurrency;
+        address token0_ = Currency.unwrap(token0);
+        address token1_ = Currency.unwrap(token1);
+        bool cashForOption;
+        if (options[token1_]){
+            option = token1_;
+            optionCurrency = token1;
+            cashCurrency = token0;
+            cashForOption = zeroForOne;
+        } else if (options[token0_]){
+            option = token0_;
+            optionCurrency = token0;
+            cashCurrency = token1;
+            cashForOption = !zeroForOne;
         } else {
             revert("Token not whitelisted");
         }
@@ -160,7 +174,10 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             cashAmount_:cashAmount_,
             price:price,
             collateralPrice:collateralPrice,
-            option:option
+            option:option,
+            cashCurrency:cashCurrency,
+            optionCurrency:optionCurrency,
+            cashForOption:cashForOption
             }
         );
     }
@@ -191,7 +208,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         require(to != address(0), "bad to");
         require(options[optionToken], "option not part of group");
 
-        Amount memory a = calculateValues(address(cash), optionToken, -int256(cashAmount));
+        Amount memory a = calculateValues(Currency.wrap(cashToken), Currency.wrap(optionToken), -int256(cashAmount), true);
         IOptionToken option = IOptionToken(optionToken);
 
         if(collateral.balanceOf(address(this)) < a.collateralAmount){
@@ -213,22 +230,23 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         returns (bytes4, BeforeSwapDelta, uint24){
         require(params.amountSpecified < 0, "amountSpecified must be negative");
         Amount memory a = calculateValues(
-            Currency.unwrap(key.currency0), 
-            Currency.unwrap(key.currency1), 
-            params.amountSpecified
+            key.currency0, 
+            key.currency1, 
+            params.amountSpecified,
+            params.zeroForOne
             );
         IOptionToken option = IOptionToken(a.option);
 
-        if (params.zeroForOne) {
+        if (a.cashForOption) {
+            // Here we JIT create option tokens and let the flash accounting handle transfers
             option.mint(a.collateralAmount);
-            poolManager.mint(address(this), key.currency0.toId(), a.amount);
-            poolManager.burn(address(this), key.currency1.toId(), a.collateralAmount);
-            poolManager.settle();
+            poolManager.mint(address(this), a.cashCurrency.toId(), a.amount);
+            poolManager.burn(address(this), a.optionCurrency.toId(), a.collateralAmount);
             return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(-a.amount_, a.collateralAmount_), 0);
         } else {
-            poolManager.mint(address(this), key.currency1.toId(), a.amount);
-            poolManager.burn(address(this), key.currency0.toId(), a.cashAmount);
-            poolManager.settle();
+            // Here we have to take the option tokens from the caller and burn them
+            poolManager.burn(address(this), a.cashCurrency.toId(), a.cashAmount);
+            poolManager.take(a.optionCurrency, address(this), a.amount);
             option.redeem(a.amount);
             return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(a.cashAmount_, -a.amount_), 0);
         }

@@ -38,9 +38,6 @@ import {IOptionToken} from "../contracts/IOptionToken.sol";
 import {IPermit2} from "../contracts/IPermit2.sol";
 
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {ConstantsMainnet} from "../contracts/ConstantsMainnet.sol";
-
-import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
@@ -53,11 +50,7 @@ contract MockERC20 is ERC20 {
 }
 
 
-contract IntegratingContract is SafeCallback {
-
-}
-
-contract OpHookTest is Test, SafeCallback {
+contract OpHookTest is Test {
     // Real Mainnet addresses for testing
     address constant WETH_UNI_POOL = address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
     address constant MOCK_POOL_MANAGER = address(0x000000000004444c5dc75cB358380D2e3dE08A90);
@@ -73,26 +66,7 @@ contract OpHookTest is Test, SafeCallback {
     MockOptionToken public option1;
     MockOptionToken public option2;
     address optionAddress;
-
-    constructor(IPoolManager _poolManager) SafeCallback(_poolManager) {}
-    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        // (...) = abi.decode(data, (...));
-        PoolKey memory key = PoolKey(
-            Currency.wrap(weth_),
-            Currency.wrap(usdc_),
-            0,
-            1,
-            IHooks(address(opHook))
-        );
-        
-
-        poolManager.swap(key, SwapParams({
-            zeroForOne: true,
-            amountSpecified: -1e18,
-            sqrtPriceLimitX96: 0
-        }), data);
-        return data;
-    }
+    
     
     function setUp() public {
         // Deploy mock tokens
