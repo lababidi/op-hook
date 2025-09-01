@@ -26,9 +26,10 @@ import {IOptionToken} from "./IOptionToken.sol";
 import {IPermit2} from "./IPermit2.sol";
 
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {console} from "forge-std/console.sol";
 
 uint160 constant SQRT_PRICE_X96 = 1<<96;
-int24 constant TICK_SPACING = 1;
+int24 constant TICK_SPACING = type(int16).max;
 
 struct OptionPool {
     address collateral;
@@ -91,6 +92,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
 
 
     IPermit2 public immutable PERMIT2;
+    address public poolManager_;
 
     OptionPool[] public pools;
     mapping(address => bool) public options;
@@ -102,6 +104,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     Ownable(msg.sender) {
         optionPrice = new OptionPrice();
         PERMIT2 = IPermit2(permit2);
+        poolManager_ = address(_poolManager);
 
         collateralToken = _collateral;
         cashToken = _cash;
@@ -129,7 +132,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             afterSwap: false,
             beforeDonate: true,
             afterDonate: false,
-            beforeSwapReturnDelta: false,
+            beforeSwapReturnDelta: true,
             afterSwapReturnDelta: false,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
@@ -224,7 +227,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         emit Swap(msg.sender, to, cashTransferred, optionAmount, a.price);
     }
 
-    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _beforeSwap(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         override
         returns (bytes4, BeforeSwapDelta, uint24){
@@ -236,18 +239,31 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             params.zeroForOne
             );
         IOptionToken option = IOptionToken(a.option);
+        require(option.expirationDate() > block.timestamp, "Option expired");
+        console.log("sender", sender);
+        console.log("poolmanager", poolManager_);
+        console.log("a.cashAmount", a.cashAmount);
+        console.log("a.collateralAmount", a.collateralAmount);
+        console.log("a.amount", a.amount);
+        console.log("a.cashForOption", a.cashForOption);
+        console.log("a.option", a.option);
+        console.log("a.cashCurrency", a.cashCurrency.toId());
+        console.log("a.optionCurrency", a.optionCurrency.toId());
 
         if (a.cashForOption) {
             // Here we JIT create option tokens and let the flash accounting handle transfers
             option.mint(a.collateralAmount);
-            poolManager.mint(address(this), a.cashCurrency.toId(), a.amount);
-            poolManager.burn(address(this), a.optionCurrency.toId(), a.collateralAmount);
-            return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(-a.amount_, a.collateralAmount_), 0);
+            poolManager.take(a.cashCurrency, address(this), a.amount);
+            option.transfer(address(poolManager_), a.collateralAmount);
+            console.log("option totalSupply", option.balanceOf(sender));
+            poolManager.settle();
+            return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(a.amount_, -a.collateralAmount_), 0);
         } else {
             // Here we have to take the option tokens from the caller and burn them
-            poolManager.burn(address(this), a.cashCurrency.toId(), a.cashAmount);
             poolManager.take(a.optionCurrency, address(this), a.amount);
             option.redeem(a.amount);
+            poolManager.sync(a.cashCurrency);
+            cash.safeTransfer(poolManager_, a.cashAmount);
             return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(a.cashAmount_, -a.amount_), 0);
         }
     }
@@ -306,7 +322,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     function initPool(
         address optionToken,
         uint24 fee
-    ) public {
+    ) public returns (PoolKey memory) {
 
         IOptionToken optionToken_ = IOptionToken(optionToken);
         uint256 expiration = optionToken_.expirationDate();
@@ -334,6 +350,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         });
         pools.push(pool);
         options[optionToken] = true;
+        return poolKey;
     }
 
     // ============ ERC4626 Overrides ============

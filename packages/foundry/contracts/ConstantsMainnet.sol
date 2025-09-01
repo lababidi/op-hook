@@ -3,10 +3,10 @@ pragma solidity ^0.8.13;
 
 /// @title Constants
 /// @notice Central place for all project-wide constants
-contract ConstantsMainnet {
+library ConstantsMainnet {
     // Example addresses (update as needed for your environment)
-    address public constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address public constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
     address public constant POOLMANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
     address public constant POSITIONDESCRIPTOR = 0xd1428Ba554F4C8450b763a0B2040A4935c63f06C;
@@ -15,6 +15,8 @@ contract ConstantsMainnet {
     address public constant STATEVIEW = 0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227;
     address public constant UNIVERSALROUTER = 0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af;
     address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    
+    address public constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
 
 
     // Decimals

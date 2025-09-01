@@ -14,14 +14,16 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
 
 
+
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IPoolManager, SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {SwapParams, PoolKey} from "v4-core/src/types/PoolOperation.sol";
 import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -39,77 +41,79 @@ import {IPermit2} from "../contracts/IPermit2.sol";
 
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {ConstantsMainnet} from "../contracts/ConstantsMainnet.sol";
+import {SafeCallback} from "./SafeCallback.sol";
 
-import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
-
-contract MockERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
-        _mint(msg.sender, 1000000 * 10**18); // Mint 1M tokens to deployer
+contract SwapCallback is SafeCallback {
+    OpHook public opHook;
+    PoolKey public poolKey;
+    constructor(IPoolManager _poolManager, OpHook _opHook, PoolKey memory _poolKey) SafeCallback(_poolManager) {
+        poolKey = _poolKey;
+        opHook = _opHook;
     }
-    
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
+    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
+        // (...) = abi.decode(data, (...));
+
+        SwapParams memory params = SwapParams({
+            zeroForOne: false,
+            amountSpecified: -1e6,
+            sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE-1    
+        });
+        bytes memory d = bytes("");
+        IERC20 usdc = IERC20(Currency.unwrap(poolKey.currency1));
+        IERC20 option = IERC20(Currency.unwrap(poolKey.currency0));
+        BalanceDelta delta = poolManager.swap(poolKey, params, d);
+        poolManager.sync(poolKey.currency1);
+        usdc.transfer(address(poolManager), 1e6);
+        poolManager.take(poolKey.currency0, address(this), uint128(delta.amount0()));
+        poolManager.settle();
+        console.log("delta0", delta.amount0());
+        console.log("delta1", delta.amount1());
+        console.log("option balance", option.balanceOf(address(poolManager)));
+        console.log("option balance", option.balanceOf(address(this)));
+        console.log("usdc balance", usdc.balanceOf(address(poolManager)));
+        console.log("usdc balance", usdc.balanceOf(address(this)));
+        
+
+        // poolManager.sync();
+        return data;
+    }
+    function swap() public {
+        poolManager.unlock(bytes(""));
     }
 }
 
 
-contract IntegratingContract is SafeCallback {
-
-}
-
-contract OpHookTest is Test, SafeCallback {
+contract OpHookTest is Test {
     // Real Mainnet addresses for testing
-    address constant WETH_UNI_POOL = address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
-    address constant MOCK_POOL_MANAGER = address(0x000000000004444c5dc75cB358380D2e3dE08A90);
-    address constant MOCK_PERMIT2 = address(0x000000000022D473030F116dDEE9F6B43aC78BA3);
-    address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
     OpHook public opHook;
     IERC20 public usdc;
     IWETH9 public weth;
-    address weth_ = MAINNET_WETH;
-    address usdc_ = MAINNET_USDC;
     MockOptionToken public option1;
     MockOptionToken public option2;
     address optionAddress;
-
-    constructor(IPoolManager _poolManager) SafeCallback(_poolManager) {}
-    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        // (...) = abi.decode(data, (...));
-        PoolKey memory key = PoolKey(
-            Currency.wrap(weth_),
-            Currency.wrap(usdc_),
-            0,
-            1,
-            IHooks(address(opHook))
-        );
-        
-
-        poolManager.swap(key, SwapParams({
-            zeroForOne: true,
-            amountSpecified: -1e18,
-            sqrtPriceLimitX96: 0
-        }), data);
-        return data;
-    }
+    PoolKey public poolKey1;
+    PoolKey public poolKey2;
     
     function setUp() public {
+
+        deal(address(this), 10000e20 ether);
+        deal(ConstantsMainnet.USDC, address(this), 1000e6);
         // Deploy mock tokens
-        weth = IWETH9(MAINNET_WETH);
-        usdc = IERC20(MAINNET_USDC);
-        option1 = new MockOptionToken("WETH-4000", "MOPT4", weth_, usdc_, block.timestamp + 30 days, 4000 * 1e18, false);
-        option2 = new MockOptionToken("WETH-5000", "MOPT5", weth_, usdc_, block.timestamp + 30 days, 5000 * 1e18, false);
+        weth = IWETH9(ConstantsMainnet.WETH);
+        usdc = IERC20(ConstantsMainnet.USDC);
+        option1 = new MockOptionToken("WETH-4000", "MOPT4", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 4000 * 1e18, false);
+        option2 = new MockOptionToken("WETH-5000", "MOPT5", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 5000 * 1e18, false);
         // Deploy OpHook using HookMiner to get correct address
-        uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG;
+        uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG;
         bytes memory constructorArgs = abi.encode(
-            IPoolManager(MOCK_POOL_MANAGER),
-            MOCK_PERMIT2,
-            address(weth),
-            address(usdc),
+            IPoolManager(ConstantsMainnet.POOLMANAGER),
+            ConstantsMainnet.PERMIT2,
+            ConstantsMainnet.WETH,
+            ConstantsMainnet.USDC,
             "WethOptionPoolVault",
             "ETHCC",
-            WETH_UNI_POOL
+            ConstantsMainnet.WETH_UNI_POOL
         );
 
         (address hookAddress, bytes32 salt) = HookMiner.find(
@@ -120,33 +124,49 @@ contract OpHookTest is Test, SafeCallback {
         );
 
         opHook = new OpHook{salt: salt}(
-            IPoolManager(MOCK_POOL_MANAGER),
-            MOCK_PERMIT2,
-            address(weth),
-            address(usdc),
+            IPoolManager(ConstantsMainnet.POOLMANAGER),
+            ConstantsMainnet.PERMIT2,
+            ConstantsMainnet.WETH,
+            ConstantsMainnet.USDC,
             "WethOptionPoolVault",
             "ETHCC",
-            WETH_UNI_POOL
+            ConstantsMainnet.WETH_UNI_POOL
         );
 
 
         console.log("Address", hookAddress);
         console.log("Address", address(opHook));
 
-        opHook.initPool(address(option1), 0);
-        opHook.initPool(address(option2), 0);
+        poolKey1 = opHook.initPool(address(option1), 0);
+        poolKey2 = opHook.initPool(address(option2), 0);
+
+
+        deal(address(weth), address(opHook), 1000e18);
+        usdc.approve(address(opHook), 1000e6);
+        usdc.approve(ConstantsMainnet.POOLMANAGER, 1000e6);
+        usdc.approve(ConstantsMainnet.PERMIT2, 1000e6);
     }
 
-    function testSwap() public {
-        deal(address(this), 1 ether);
-        deal(address(weth), address(opHook), 1e18);
-        deal(address(usdc), address(this), 1000e6);
-        usdc.approve(address(opHook), 1000e6);
-        opHook.swap(address(option1), 100e6, address(this));
-        console.log("option1 balance", option1.balanceOf(address(this)));
+    // function testSwap() public {
+    //     opHook.swap(address(option1), 1000e6, address(this));
+    // }
+
+    function testSwapCallback() public {
+        IPoolManager poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);  
+        SwapCallback swapCallback = new SwapCallback(poolManager, opHook, poolKey1);
+        address swapcb = address(swapCallback);
+        deal(ConstantsMainnet.USDC, swapcb, 1000e6);
+        swapCallback.swap();
+        console.log("option1 balance", option1.balanceOf(swapcb));
+        console.log("option1 balance", option1.balanceOf(address(opHook)));
         console.log("option2 balance", option2.balanceOf(address(this)));
         console.log("WETH balance", weth.balanceOf(address(this)));
+        console.log("WETH balance", weth.balanceOf(address(opHook)));
         console.log("USDC balance", usdc.balanceOf(address(this)));
+
+        console.log("USDC balance", usdc.balanceOf(address(opHook)));
+        console.log("USDC balance", usdc.balanceOf(swapcb));
+        console.log("ophookaddress", address(opHook));
     }
 
     // function testGetUnderlyingPrice() public view {
