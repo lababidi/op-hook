@@ -12,6 +12,10 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
+import { UniversalRouter } from "universal-router/contracts/UniversalRouter.sol";
+import { IV4Router } from "v4-periphery/src/interfaces/IV4Router.sol";
+import { Actions } from "v4-periphery/src/libraries/Actions.sol";
+import { Commands } from "universal-router/contracts/libraries/Commands.sol";
 
 
 
@@ -46,9 +50,12 @@ import {SafeCallback} from "./SafeCallback.sol";
 contract SwapCallback is SafeCallback {
     OpHook public opHook;
     PoolKey public poolKey;
+    // UniversalRouter public immutable router;
+
     constructor(IPoolManager _poolManager, OpHook _opHook, PoolKey memory _poolKey) SafeCallback(_poolManager) {
         poolKey = _poolKey;
         opHook = _opHook;
+        // router = IV4Router(ConstantsMainnet.UNIVERSALROUTER);
     }
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         // (...) = abi.decode(data, (...));
@@ -152,12 +159,51 @@ contract OpHookTest is Test {
     // }
 
     function testSwapCallback() public {
-        IPoolManager poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);  
-        SwapCallback swapCallback = new SwapCallback(poolManager, opHook, poolKey1);
-        address swapcb = address(swapCallback);
-        deal(ConstantsMainnet.USDC, swapcb, 1000e6);
-        swapCallback.swap();
-        console.log("option1 balance", option1.balanceOf(swapcb));
+        IPoolManager poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);
+        UniversalRouter router = UniversalRouter(payable(ConstantsMainnet.UNIVERSALROUTER));
+        // SwapCallback swapCallback = new SwapCallback(poolManager, opHook, poolKey1);
+        // address swapcb = address(swapCallback);
+        deal(ConstantsMainnet.USDC, address(this), 1000e6);
+        
+        uint256 V4_SWAP = 0x10;
+
+        bytes memory commands = abi.encodePacked(uint8(V4_SWAP));
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_IN_SINGLE),
+            uint8(Actions.SETTLE_ALL),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        bytes[] memory params = new bytes[](3);
+
+        // First parameter: swap configuration
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: poolKey1,
+                zeroForOne: true,            // true if we're swapping token0 for token1
+                amountIn: 1e6,          // amount of tokens we're swapping
+                amountOutMinimum: 0, // minimum amount we expect to receive
+                hookData: bytes("")             // no hook data needed
+            })
+        );
+
+        // Second parameter: specify input tokens for the swap
+        // encode SETTLE_ALL parameters
+        params[1] = abi.encode(poolKey1.currency0, 1e6);
+
+        // Third parameter: specify output tokens from the swap
+        params[2] = abi.encode(poolKey1.currency1, 0);
+        bytes[] memory inputs = new bytes[](1);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+
+        // Execute the swap
+        uint256 deadline = block.timestamp + 20;
+        router.execute(commands, inputs, deadline);
+
+        // swapCallback.swap();
+        console.log("option1 balance", option1.balanceOf(address(this)));
         console.log("option1 balance", option1.balanceOf(address(opHook)));
         console.log("option2 balance", option2.balanceOf(address(this)));
         console.log("WETH balance", weth.balanceOf(address(this)));
@@ -165,7 +211,9 @@ contract OpHookTest is Test {
         console.log("USDC balance", usdc.balanceOf(address(this)));
 
         console.log("USDC balance", usdc.balanceOf(address(opHook)));
-        console.log("USDC balance", usdc.balanceOf(swapcb));
+        console.log("USDC balance", usdc.balanceOf(address(this)));
+        console.log("USDC balance", usdc.balanceOf(address(poolManager)));
+        
         console.log("ophookaddress", address(opHook));
     }
 
