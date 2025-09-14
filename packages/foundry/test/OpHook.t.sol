@@ -55,23 +55,13 @@ contract SwapCallback is SafeCallback {
     OpHook public opHook;
     PoolKey public poolKey;
     using CurrencySettler for Currency;
-    // UniversalRouter public immutable router;
 
     constructor(IPoolManager _poolManager, OpHook _opHook, PoolKey memory _poolKey) SafeCallback(_poolManager) {
         poolKey = _poolKey;
         opHook = _opHook;
-        // router = IV4Router(ConstantsMainnet.UNIVERSALROUTER);
     }
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        // (...) = abi.decode(data, (...));
-                (
-            address sender
-            // PoolKey memory key,
-            // bool zeroForOne,
-            // uint256 amountIn,
-            // uint256 amountOut,
-            // bytes memory hookData
-        ) = abi.decode(data, (address));
+        (address sender) = abi.decode(data, (address));
 
         int256 amountIn = 1e6;
         SwapParams memory params = SwapParams({
@@ -102,7 +92,7 @@ contract SwapCallback is SafeCallback {
         console.log("option balance", option.balanceOf(address(this)));
         console.log("usdc balance", int256(usdc.balanceOf(address(poolManager))) - int256(initBal));
         console.log("usdc balance", usdc.balanceOf(address(sender)));
-        console.log("option balance", usdc.balanceOf(address(sender)));
+        console.log("option balance", option.balanceOf(address(sender)));
         
 
         // poolManager.sync();
@@ -125,8 +115,10 @@ contract OpHookTest is Test {
     address optionAddress;
     PoolKey public poolKey1;
     PoolKey public poolKey2;
+    IPoolManager poolManager
     
     function setUp() public {
+        poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);
 
         deal(address(this), 10000e20 ether);
         deal(ConstantsMainnet.USDC, address(this), 1000e6);
@@ -184,8 +176,7 @@ contract OpHookTest is Test {
     // }
 
     function testSwapCallback() public {
-        IPoolManager poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);
-        UniversalRouter router = UniversalRouter(payable(ConstantsMainnet.UNIVERSALROUTER));
+        // UniversalRouter router = UniversalRouter(payable(ConstantsMainnet.UNIVERSALROUTER));
         SwapCallback swapCallback = new SwapCallback(poolManager, opHook, poolKey1);
         address swapcb = address(swapCallback);
         deal(address(usdc), swapcb, 1000e18);
@@ -217,7 +208,6 @@ contract OpHookTest is Test {
         bytes memory actions = abi.encodePacked(
             uint8(Actions.SWAP_EXACT_IN_SINGLE),
             uint8(Actions.SETTLE_ALL),
-            // uint8(Actions.TAKE_ALL),
             uint8(Actions.TAKE_ALL)
         );
 
@@ -234,29 +224,20 @@ contract OpHookTest is Test {
         );
         params[1] = abi.encode(poolKey1.currency1, type(uint256).max);
         params[2] = abi.encode(poolKey1.currency0, 0);
-        // params[3] = abi.encode(poolKey1.currency1, 0);
-        
 
         bytes[] memory inputs = new bytes[](1);
         inputs[0] = abi.encode(actions, params);
 
         router.execute(commands, inputs, block.timestamp + 20);
 
-
-
-        // swapCallback.swap();
         console.log("option1 balance", option1.balanceOf(address(this)));
         console.log("option1 balance", option1.balanceOf(address(opHook)));
-        console.log("option2 balance", option2.balanceOf(address(this)));
-        console.log("WETH balance", weth.balanceOf(address(this)));
         console.log("WETH balance", weth.balanceOf(address(opHook)));
         console.log("USDC balance", usdc.balanceOf(address(this)));
 
         console.log("USDC balance", usdc.balanceOf(address(opHook)));
         console.log("USDC balance", usdc.balanceOf(address(this)));
         console.log("USDC balance", usdc.balanceOf(address(poolManager)));
-        
-        console.log("ophookaddress", address(opHook));
     }
 
     // function testGetUnderlyingPrice() public view {
