@@ -8,7 +8,7 @@ ffi = true
 fs_permissions = [{ access = "read-write", path = ".forge-snapshots/"}, { access = "read", path = "./out"}, {access = "read", path = "./test/bin"}]
 solc = "0.8.26"
 evm_version = "cancun"
-gas_limit = "300000000"
+gas_limit = "18446744073709551615"
 bytecode_hash = "none"
 # fs_permissions = [{ access = "read-write", path = "./"}]
 
