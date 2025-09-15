@@ -3,12 +3,13 @@ pragma solidity ^0.8.26;
 
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IPoolManager, SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {IPoolManager, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -20,13 +21,15 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+
 import {OptionPrice, IUniswapV3Pool} from "./OptionPrice.sol";
 
 import {IOptionToken} from "./IOptionToken.sol";
 import {IPermit2} from "./IPermit2.sol";
 
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {console} from "forge-std/console.sol";
+import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
 
 uint160 constant SQRT_PRICE_X96 = 1<<96;
 int24 constant TICK_SPACING = type(int16).max;
@@ -160,14 +163,14 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         }
         require(amountSpecified < 0, "amountSpecified must be negative");
         uint256 amount = uint256(-amountSpecified);
-        int128 amount_ = int128(int256(amount));
+        int128 amount_ = SafeCast.toInt128(int256(amount));
         uint256 collateralPrice = getCollateralPrice();
         uint256 price = _getPrice(collateralPrice, option);
 
         uint256 collateralAmount = calculateCollateral(amount, price);
-        int128 collateralAmount_ = int128(int256(collateralAmount));
+        int128 collateralAmount_ = SafeCast.toInt128(int256(collateralAmount));
         uint256 cashAmount = Math.mulDiv(amount, 1e36, price);
-        int128 cashAmount_ = int128(int256(cashAmount));
+        int128 cashAmount_ = SafeCast.toInt128(int256(cashAmount));
         amounts = Amount({
             amount:amount,
             amount_:amount_,
@@ -253,11 +256,27 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         if (a.cashForOption) {
             // Here we JIT create option tokens and let the flash accounting handle transfers
             option.mint(a.collateralAmount);
+            console.log("delta", NonzeroDeltaCount.read());
             poolManager.take(a.cashCurrency, address(this), a.amount);
+            console.log("delta", NonzeroDeltaCount.read());
+            poolManager.sync(a.optionCurrency);
             option.transfer(address(poolManager_), a.collateralAmount);
+            console.log("delta", NonzeroDeltaCount.read());
+            
             console.log("option totalSupply", option.balanceOf(sender));
             poolManager.settle();
-            return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(a.amount_, -a.collateralAmount_), 0);
+            console.log("option totalSupply", option.balanceOf(sender));
+            console.log("delta", NonzeroDeltaCount.read());
+            BeforeSwapDelta delta = toBeforeSwapDelta(a.amount_, -a.collateralAmount_);
+            console.log("a.amount_", a.amount_);
+            console.log("a.collateralAmount_", a.collateralAmount_);
+            // console.log("delta", BeforeSwapDelta.unwrap(delta));
+            console.log("specifiedDelta", BeforeSwapDeltaLibrary.getSpecifiedDelta(delta));
+            console.log("unspecifiedDelta", BeforeSwapDeltaLibrary.getUnspecifiedDelta(delta));
+            // int256 dW = poolManager.currencyDelta(msg.sender, Currency.wrap(address(weth)));
+            // int256 dO2 = poolManager.currencyDelta(msg.sender, Currency.wrap(address(option2)));
+            // console.log("ownerDeltas", d0, d1 /*, dW, dO2*/);
+            return (BaseHook.beforeSwap.selector, delta, 0);
         } else {
             // Here we have to take the option tokens from the caller and burn them
             poolManager.take(a.optionCurrency, address(this), a.amount);
@@ -268,7 +287,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         }
     }
 
-    function _beforeAddLiquidity(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _beforeAddLiquidity(address, PoolKey calldata, SwapParams calldata, bytes calldata)
         internal
         pure
         
@@ -276,7 +295,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             revert("Cannot Add Liquidity to This Pool ");
         }
 
-    function _beforeDonate(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _beforeDonate(address, PoolKey calldata, SwapParams calldata, bytes calldata)
         internal
         pure
         returns (bytes4, BeforeSwapDelta, uint24){

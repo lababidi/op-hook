@@ -6,9 +6,9 @@ import "forge-std/console.sol";
 import "../contracts/OpHook.sol";
 import "../contracts/IOptionToken.sol";
 import "../contracts/MockOptionToken.sol";
-import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
@@ -16,12 +16,12 @@ import {IWETH9} from "lib/v4-periphery/src/interfaces/external/IWETH9.sol";
 
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IPoolManager, SwapParams} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {IPoolManager, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -37,7 +37,7 @@ import {OptionPrice, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
 import {IOptionToken} from "../contracts/IOptionToken.sol";
 import {IPermit2} from "../contracts/IPermit2.sol";
 
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
 contract UniOpHookTest is Test {
     // using EasyPosm for IPositionManager;

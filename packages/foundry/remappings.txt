@@ -1,4 +1,8 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts
 @openzeppelin/uniswap-hooks/=lib/uniswap-hooks/
+@uniswap/v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/
+@uniswap/universal-router/=lib/universal-router/
+@uniswap/v4-core/=lib/uniswap-hooks/lib/v4-core/
+@uniswap/v3-core/=lib/v3-core/
+@uniswap/v2-core/=lib/v2-core/
 v4-core/=lib/uniswap-hooks/lib/v4-core/
-v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/
