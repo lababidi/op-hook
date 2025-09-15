@@ -7,29 +7,29 @@ import "../contracts/OpHook.sol";
 import "../contracts/IOptionToken.sol";
 import "../contracts/MockOptionToken.sol";
 import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
-import { UniversalRouter } from "universal-router/contracts/UniversalRouter.sol";
-import { IV4Router } from "v4-periphery/src/interfaces/IV4Router.sol";
-import { Actions } from "v4-periphery/src/libraries/Actions.sol";
-import { Commands } from "universal-router/contracts/libraries/Commands.sol";
+import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
+import { UniversalRouter } from "@uniswap/universal-router/contracts/UniversalRouter.sol";
+import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
+import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
+import { Commands } from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 
 
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {SwapParams, PoolKey} from "v4-core/src/types/PoolOperation.sol";
-import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {SwapParams, PoolKey} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -45,7 +45,7 @@ import {OptionPrice, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
 import {IOptionToken} from "../contracts/IOptionToken.sol";
 import {IPermit2} from "../contracts/IPermit2.sol";
 
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {ConstantsMainnet} from "../contracts/ConstantsMainnet.sol";
 import {SafeCallback} from "./SafeCallback.sol";
 import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
@@ -115,9 +115,13 @@ contract OpHookTest is Test {
     address optionAddress;
     PoolKey public poolKey1;
     PoolKey public poolKey2;
-    IPoolManager poolManager
+    IPoolManager poolManager;
+    string MAINNET_RPC_URL = "https://reth-ethereum.ithaca.xyz/rpc";
+    uint mainnetFork;
     
     function setUp() public {
+
+        mainnetFork = vm.createSelectFork(MAINNET_RPC_URL, 23359458);
         poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);
 
         deal(address(this), 10000e20 ether);
@@ -189,7 +193,6 @@ contract OpHookTest is Test {
     }
 
     function testRouterSwap() public {
-        IPoolManager poolManager = IPoolManager(ConstantsMainnet.POOLMANAGER);
         UniversalRouter router = UniversalRouter(payable(ConstantsMainnet.UNIVERSALROUTER));
         deal(ConstantsMainnet.USDC, address(this), 1000e6);
         usdc.approve(address(router), 1000e6);

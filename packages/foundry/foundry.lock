@@ -1,5 +1,35 @@
 {
+  "lib/v2-core": {
+    "tag": {
+      "name": "v1.0.1",
+      "rev": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc"
+    }
+  },
+  "packages/foundry/lib/v4-periphery": {
+    "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
+  },
+  "lib/universal-router.git": {
+    "branch": {
+      "name": "main",
+      "rev": "3663f6db6e2fe121753cd2d899699c2dc75dca86"
+    }
+  },
+  "packages/foundry/lib/v3-core": {
+    "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+  },
   "lib/v4-periphery": {
     "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
+  },
+  "lib/v3-core": {
+    "tag": {
+      "name": "v1.0.0",
+      "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+    }
+  },
+  "lib/universal-router": {
+    "branch": {
+      "name": "main",
+      "rev": "3663f6db6e2fe121753cd2d899699c2dc75dca86"
+    }
   }
 }
