@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
-import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+
+/// @notice Interface for the callback executed when an address unlocks the pool manager
+interface IUnlockCallback {
+    /// @notice Called by the pool manager on `msg.sender` when the manager is unlocked
+    /// @param data The data that was passed to the call to unlock
+    /// @return Any data that you want to be returned from the unlock call
+    function unlockCallback(bytes calldata data) external returns (bytes memory);
+}
 
 /// @title IImmutableState
 /// @notice Interface for the ImmutableState contract

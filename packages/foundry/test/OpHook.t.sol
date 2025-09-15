@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -175,12 +175,7 @@ contract OpHookTest is Test {
         usdc.approve(ConstantsMainnet.PERMIT2, 1000e6);
     }
 
-    // function testSwap() public {
-    //     opHook.swap(address(option1), 1000e6, address(this));
-    // }
-
     function testSwapCallback() public {
-        // UniversalRouter router = UniversalRouter(payable(ConstantsMainnet.UNIVERSALROUTER));
         SwapCallback swapCallback = new SwapCallback(poolManager, opHook, poolKey1);
         address swapcb = address(swapCallback);
         deal(address(usdc), swapcb, 1000e18);
@@ -242,81 +237,5 @@ contract OpHookTest is Test {
         console.log("USDC balance", usdc.balanceOf(address(this)));
         console.log("USDC balance", usdc.balanceOf(address(poolManager)));
     }
-
-    // function testGetUnderlyingPrice() public view {
-    //     uint256 price = opHook.getCollateralPrice();
-    //     console.log("price", price);
-    // }
-    
-    // function testGetOptionPrice() public view {
-    //     // Test getOptionPrice function with mock option token
-    //     // Note: This will likely fail because OptionPrice needs proper setup,
-    //     // but let's test the interface
-    //     CurrentOptionPrice memory price = opHook.getOptionPrice(address(option1));
-    //     // If it doesn't revert, verify the structure
-    //     assertEq(price.collateral, address(weth), "Underlying should match");
-    //     assertEq(price.optionToken, address(option1), "Option token should match");
-    //     console.log(option1.strike());
-    //     console.log(option1.expirationDate());
-    //     console.log(option1.STRIKE_DECIMALS());
-    //     console.log(option1.isPut());
-    //     console.log(address(option1));
-    //     console.log(address(option1.collateral()));
-    //     console.log(address(option1.consideration()));
-    //     console.log(option1.initialized());
-    //     console.log(price.collateral);
-        
-
-    //     console.log("price", price.price);
-    //     // Price could be any value, just check it's returned
-    //     assertTrue(price.price >= 0, "Price should be non-negative");
-
-    // }
-
-    // function testUserAccountWithEthWethAndSwap() public {
-    //     // Set up user account
-    //     address user = address(0x123456789);
-    //     uint256 initialEthAmount = 10 ether;
-        
-    //     // Deal ETH to user account
-    //     vm.deal(user, initialEthAmount);
-    //     assertEq(user.balance, initialEthAmount, "User should have initial ETH");
-        
-    //     // Wrap ETH to WETH
-    //     uint256 wrapAmount = 5 ether;
-    //     vm.prank(user);
-    //     weth.deposit{value: wrapAmount}();
-        
-    //     // Verify WETH balance
-    //     assertEq(weth.balanceOf(user), wrapAmount, "User should have WETH");
-    //     assertEq(user.balance, initialEthAmount - wrapAmount, "User ETH should be reduced");
-        
-    //     // For swapping to USDC, we'll use a simple approach with deal
-    //     // In a real test, you'd integrate with Uniswap V3 or another DEX
-    //     // For now, we'll simulate receiving USDC after "swapping"
-    //     uint256 swapAmount = 2 ether; // 2 WETH to swap
-    //     uint256 usdcReceived = 4000 * 1e6; // Assume ~$2000 per ETH, USDC has 6 decimals
-        
-    //     // Approve WETH spending (would be for actual DEX)
-    //     vm.prank(user);
-    //     weth.approve(address(this), swapAmount);
-        
-    //     // Simulate the swap by dealing USDC and reducing WETH
-    //     vm.startPrank(user);
-    //     weth.transfer(address(0xdead), swapAmount); // Burn WETH to simulate swap
-    //     vm.stopPrank();
-        
-    //     // Deal USDC to simulate swap result
-    //     deal(MAINNET_USDC, user, usdcReceived);
-        
-    //     // Verify final balances
-    //     assertEq(weth.balanceOf(user), wrapAmount - swapAmount, "WETH balance should be reduced");
-    //     assertEq(IERC20(MAINNET_USDC).balanceOf(user), usdcReceived, "User should have USDC");
-        
-    //     console.log("User account setup complete:");
-    //     console.log("- ETH balance:", user.balance);
-    //     console.log("- WETH balance:", weth.balanceOf(user));
-    //     console.log("- USDC balance:", IERC20(MAINNET_USDC).balanceOf(user));
-    // }
 
 }
