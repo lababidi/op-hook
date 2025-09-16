@@ -41,7 +41,7 @@ contract ScaffoldETHDeploy is Script {
         (, address _deployer,) = vm.readCallers();
 
         if (block.chainid == 31337 && _deployer.balance == 0) {
-            anvil_setBalance(_deployer, ANVIL_BASE_BALANCE);
+            // anvil_setBalance(_deployer, ANVIL_BASE_BALANCE);
             emit AnvilSetBalance(_deployer, ANVIL_BASE_BALANCE);
         }
         return _deployer;

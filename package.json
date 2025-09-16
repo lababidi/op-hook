@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@fontsource/share": "^5.2.6",
-    "geist": "^1.4.2"
+    "geist": "^1.4.2",
+    "porto": "^0.2.6"
   }
 }

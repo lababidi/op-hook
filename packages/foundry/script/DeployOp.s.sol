@@ -7,13 +7,14 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {HookMiner} from "v4-periphery/src/utils/HookMiner.sol";
 import {OpHook} from "../contracts/OpHook.sol";
 import {ConstantsMainnet} from "../contracts/ConstantsMainnet.sol";
+import {ScaffoldETHDeploy} from "./DeployHelpers.s.sol";
 
 
 /// @notice Mines the address and deploys the PointsHook.sol Hook contract
-contract PointsHookScript is Script {
+contract DeployOp is Script, ScaffoldETHDeploy {
     function setUp() public {}
 
-    function run() public {
+    function run() public ScaffoldEthDeployerRunner{
 
         uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG;
         bytes memory constructorArgs = abi.encode(
@@ -35,8 +36,8 @@ contract PointsHookScript is Script {
 
         // Deploy the hook using CREATE2
         // forge script script/DeployOp.s.sol --broadcast --private-key [KEY]
-        vm.createSelectFork("http://localhost:8545");
-        vm.broadcast();
+        // vm.createSelectFork("http://localhost:8545");
+        // vm.broadcast();
         OpHook opHook = new OpHook{salt: salt}(
             IPoolManager(ConstantsMainnet.POOLMANAGER),
             ConstantsMainnet.PERMIT2,
@@ -46,7 +47,7 @@ contract PointsHookScript is Script {
             "ETHCC",
             ConstantsMainnet.WETH_UNI_POOL
         );
-        require(address(opHook) == hookAddress, "PointsHookScript: hook address mismatch");
+        require(address(opHook) == hookAddress, " hook address mismatch");
 
 
 
