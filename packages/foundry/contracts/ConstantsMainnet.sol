@@ -18,6 +18,8 @@ library ConstantsMainnet {
     
     address public constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
 
+    address public constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+
 
     // Decimals
     uint8 public constant WETH_DECIMALS = 18;
