@@ -32,7 +32,7 @@ contract OptionPrice {
         uint256 volatility,
         uint256 r,
         bool isPut
-    ) public pure returns (uint256) {
+    ) public pure returns (uint256 price) {
         // All values are in 1e18 fixed point
         // timeToExpiration is in seconds, convert to years (divide by 31536000)
         if (timeToExpiration == 0) {
@@ -47,65 +47,99 @@ contract OptionPrice {
         uint256 t = (timeToExpiration * 1e18) / 31536000; // t in years, 1e18 fixed point
 
         // sigma * sqrt(t)
-        uint256 sigmaSqrtT = sqrt((volatility * volatility * t) / 1e18);
+        int256 sigmaSqrtT = int256(mul18( volatility , sqrt(t)*1e9));
 
-        uint256 Ks = underlying * 1e18 / strike;
+        if (underlying == 0 ) underlying=1;
+        uint256 Ks = div18(underlying, strike);
 
+        require(Ks >= 0, "strike cannot be zero");
         // ln(underlying/strike)
-        int256 lnUS = Ks>1e18 ? ln(Ks) : -ln(1e36/Ks);
+        int256 lnUS = ln(Ks);
 
         // (r + 0.5 * sigma^2) * t
-        uint256 halfSigma2 = (volatility * volatility) / (2 * 1e18);
-        uint256 mu = ((r + halfSigma2) * t) / 1e18;
+        uint256 halfSigma2 = mul18(volatility, volatility)/2;
+        int256 mu = int256(mul18((r + halfSigma2), t));
 
         // d1 = (ln(U/S) + (r + 0.5*sigma^2)*t) / (sigma*sqrt(t))
-        int256 d1 = (lnUS + int256(mu)) * 1e18 / int256(sigmaSqrtT);
+        int256 d1 = div18(lnUS + mu , sigmaSqrtT);
 
         // d2 = d1 - sigma*sqrt(t)
-        int256 d2 = d1 - int256(sigmaSqrtT);
+        int256 d2 = d1 - sigmaSqrtT;
 
         // N(d1), N(d2)
         uint256 Nd1 = normCDF(d1);
         uint256 Nd2 = normCDF(d2);
+        uint256 Nd1n = normCDF(-d1);
+        uint256 Nd2n = normCDF(-d2);
 
         // exp(-r*t)
-        uint256 expRT = expNeg(r * t / 1e18);
+        uint256 expRT = expNeg(mul18(r, t));
 
-        uint256 price;
+        console.log("left", sigmaSqrtT);
+        console.log("lnUS", lnUS);
+        console.log("mu", mu);
+        console.log("d1", d1);
+        console.log("d2", d2);
+        console.log("Nd1", Nd1);
+        console.log("Nd2", Nd2);
+        console.log("Nd1n", Nd1n);
+        console.log("Nd2n", Nd2n);
+        console.log("exp(-r*t)", expRT);
+        console.log("halfSigma2", halfSigma2);
         if (!isPut) {
-            console.log("left", ((underlying/1e9)  * (Nd1/1e9)));
-            console.log("right", ((strike/1e9) * (expRT / 1e9)) * (Nd2 / 1e9)/1e9);
+            console.log("left", mul18(underlying, Nd1));
+            console.log("right", mul18(mul18(strike,expRT ), Nd2) );
             // C = U * N(d1) - S * exp(-r*t) * N(d2)
-            price = ((underlying/1e9)  * (Nd1/1e9))  - ((strike/1e9) * (expRT / 1e9)) * (Nd2 / 1e9)/1e9;
+            price = mul18(underlying, Nd1) - mul18(mul18(strike,expRT ), Nd2);
         } else {
+            console.log("right", mul18(underlying, Nd1n));
+            console.log("left", mul18(mul18(strike,expRT ), Nd2n) );
             // P = S * exp(-r*t) * N(-d2) - U * N(-d1)
-            price = (strike * expRT / 1e18) * normCDF(-d2) / 1e18 - ((underlying/1e9) * (normCDF(-d1)/1e9)) ;
+            price = mul18(mul18(strike, expRT), Nd2n) - mul18(underlying, Nd1n);
         }
-        return price;
+    }
+
+    function mul18(int256 a, int256 b) public pure returns (int256) {
+        return (a * b) / 1e18;
+    }
+    function mul18(uint256 a, uint256 b) public pure returns (uint256) {
+        return (a * b) / 1e18;
+    }
+    function div18(int256 a, int256 b) public pure returns (int256) {
+        return (a * 1e18) / b;
+    }
+    function div18(uint256 a, uint256 b) public pure returns (uint256) {
+        return (a * 1e18) / b;
     }
 
     // --- Math helpers ---
 
+    function ln_(uint256 x) public pure returns (int256 y) {
+        y = (int256(log2(x) - 59.794705707972522261e18)*0.693147180655945309e18)/1e18; 
+    }
     // Natural logarithm (ln) for 1e18 fixed point, returns 1e18 fixed point
-    function ln(uint256 x) public pure returns (int256) {
+    function ln(uint256 x) public pure returns (int256 y) {
+        if (x<1e18) return -ln_(1e36/x);
+        return ln_(x);
+        
         // Precomputed ln(x) values for x in [1.0, 2.0] in 0.05 increments, x in 1e18 fixed point
         // x is 1e18 fixed point, valid for x in [1e18, 2e18]
         // grid: x = 1.00, 1.05, 1.10, ..., 2.00 (21 values)
-        require(x >= 1e18 && x <= 2e18, "ln: x out of grid range");
-        int256[21] memory lnGrid = [
-            int256(0), 
-             48790164169432048,  95310179804324928, 139761942375158816, 
-            182321556793954784, 223143551314209920, 262364264467491296, 
-            300104592450338304, 336472236621213184, 371563556432483264, 
-            405465108108164672, 438254930931155584, 470003629245735936, 
-            500775287912489600, 530628251062170688, 559615787935423104, 
-            587786664902119424, 615185639090233856, 641853886172395264, 
-            667829372575655936, 693147180559945728];
-        // Compute index: round((x - 1e18) / 5e16)
-        // (x - 1e18) is in [0, 1e18], so divide by 5e16 to get [0,20]
-        uint256 idx = uint256((x - 1e18 + 25e15) / 5e16); // +0.025 for rounding
-        if (idx > 20) idx = 20;
-        return lnGrid[idx];
+        // require(x >= 1e18 && x <= 2e18, "ln: x out of grid range");
+        // int256[21] memory lnGrid = [
+        //     int256(0), 
+        //      48790164169432048,  95310179804324928, 139761942375158816, 
+        //     182321556793954784, 223143551314209920, 262364264467491296, 
+        //     300104592450338304, 336472236621213184, 371563556432483264, 
+        //     405465108108164672, 438254930931155584, 470003629245735936, 
+        //     500775287912489600, 530628251062170688, 559615787935423104, 
+        //     587786664902119424, 615185639090233856, 641853886172395264, 
+        //     667829372575655936, 693147180559945728];
+        // // Compute index: round((x - 1e18) / 5e16)
+        // // (x - 1e18) is in [0, 1e18], so divide by 5e16 to get [0,20]
+        // uint256 idx = uint256((x - 1e18 + 25e15) / 5e16); // +0.025 for rounding
+        // if (idx > 20) idx = 20;
+        // return lnGrid[idx];
     }
 
     // Exponential function e^{-x}, x >= 0 in 1e18 fixed point, returns 1e18 fixed point
@@ -224,7 +258,7 @@ contract OptionPrice {
     }
 
     // Returns the price of the token (18 decimals)
-    function getPrice(uint collateralPrice, uint256 strike, uint256 expiration, bool optionType, bool inverse) external view returns (uint256) {
+    function getPrice(uint collateralPrice, uint256 strike, uint256 expiration, bool isPut, bool inverse) external view returns (uint256) {
 
         uint256 timeToExpiration = expiration > block.timestamp ? expiration - block.timestamp : 0;
         
@@ -234,12 +268,51 @@ contract OptionPrice {
             timeToExpiration, 
             0.2 * 1e18, 
             0.05 * 1e18, 
-            optionType
+            isPut
             );
 
         if (inverse && price > 0) {
             return 1e36 / price;
         }
         return price;
+    }
+
+    function log2(uint256 x) public pure returns (uint256) {
+        require(x > 0, "log2 undefined for 0");
+
+        // 1) Integer part: msb = floor(log2(x))
+        uint256 msb;
+        {
+            uint256 t = x;
+            if (t >= 1 << 128) { t >>= 128; msb += 128; }
+            if (t >= 1 <<  64) { t >>=  64; msb +=  64; }
+            if (t >= 1 <<  32) { t >>=  32; msb +=  32; }
+            if (t >= 1 <<  16) { t >>=  16; msb +=  16; }
+            if (t >= 1 <<   8) { t >>=   8; msb +=   8; }
+            if (t >= 1 <<   4) { t >>=   4; msb +=   4; }
+            if (t >= 1 <<   2) { t >>=   2; msb +=   2; }
+            if (t >= 1 <<   1) {           msb +=   1; }
+        }
+
+        // 2) Start result as Q64.64 with integer part
+        uint256 resultQ64 = msb << 64;
+
+        // 3) Normalize to r in [1,2) but carried as Q128 (i.e., 1<<127 is "1.0")
+        //    Note: shift count is safe because x > 0 and msb ≤ 255.
+        uint256 r = x << (127 - msb); // Q128
+
+        // 64 fractional bits
+        for (uint256 i = 0; i < 64; ++i) {
+            // r = r^2 in Q128: (Q128 * Q128) >> 127 keeps it as Q128 in [1,4)
+            r = (r * r) >> 127;
+            if (r >= (1 << 128)) {
+                // set this fractional bit
+                r >>= 1; // bring r back to [1,2)
+                resultQ64 |= uint256(1) << (63 - i);
+            }
+        }
+
+        // 4) Convert Q64.64 -> 1e18
+        return (resultQ64 * 1e18) >> 64;
     }
 }

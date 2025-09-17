@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     OpHook: {
-      address: "0x46804fea2878f362b307d97920118c0a78d108a8",
+      address: "0xdca75fbed93988d06a7bb8c5c8c7350112d2c8a8",
       abi: [
         {
           type: "constructor",
@@ -945,6 +945,54 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "calculateCash",
+          inputs: [
+            {
+              name: "collateralAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "price",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "pure",
+        },
+        {
+          type: "function",
+          name: "calculateCollateral",
+          inputs: [
+            {
+              name: "cashAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "price",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "pure",
+        },
+        {
+          type: "function",
           name: "cash",
           inputs: [],
           outputs: [
@@ -1183,10 +1231,15 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "getOptionPrice",
+          name: "getPrice",
           inputs: [
             {
-              name: "optionToken",
+              name: "collateralPrice",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "option_",
               type: "address",
               internalType: "address",
             },
@@ -1194,33 +1247,49 @@ const deployedContracts = {
           outputs: [
             {
               name: "",
-              type: "tuple",
-              internalType: "struct CurrentOptionPrice",
-              components: [
-                {
-                  name: "collateral",
-                  type: "address",
-                  internalType: "address",
-                },
-                {
-                  name: "optionToken",
-                  type: "address",
-                  internalType: "address",
-                },
-                {
-                  name: "price",
-                  type: "uint256",
-                  internalType: "uint256",
-                },
-                {
-                  name: "collateralPrice",
-                  type: "uint256",
-                  internalType: "uint256",
-                },
-              ],
+              type: "uint256",
+              internalType: "uint256",
             },
           ],
           stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getPrice",
+          inputs: [
+            {
+              name: "option_",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getPriceX64",
+          inputs: [
+            {
+              name: "sqrtPriceX96",
+              type: "uint160",
+              internalType: "uint160",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "pure",
         },
         {
           type: "function",
@@ -1550,6 +1619,11 @@ const deployedContracts = {
               internalType: "address",
             },
             {
+              name: "optionToken",
+              type: "address",
+              internalType: "address",
+            },
+            {
               name: "token0",
               type: "address",
               internalType: "address",
@@ -1575,12 +1649,12 @@ const deployedContracts = {
               internalType: "uint160",
             },
             {
-              name: "optionToken",
-              type: "address",
-              internalType: "address",
+              name: "expiration",
+              type: "uint256",
+              internalType: "uint256",
             },
             {
-              name: "expiration",
+              name: "strike",
               type: "uint256",
               internalType: "uint256",
             },
@@ -2404,7 +2478,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 23359461,
+      deployedOnBlock: 23359459,
     },
   },
 } as const;

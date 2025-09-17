@@ -6,7 +6,7 @@ import {OptionPrice} from "../contracts/OptionPrice.sol";
 
 contract OptionPriceTest is Test {
     address constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
-    OptionPrice public optionPrice;
+    OptionPrice public op;
 
     string MAINNET_RPC_URL = "https://reth-ethereum.ithaca.xyz/rpc";
     uint mainnetFork;
@@ -14,81 +14,60 @@ contract OptionPriceTest is Test {
     function setUp() public {
 
         mainnetFork = vm.createSelectFork(MAINNET_RPC_URL, 23359458);
-        optionPrice = new OptionPrice();
+        op = new OptionPrice();
     }
 
     // expNeg function tests
-    function test_expNeg_zero() public view {
+    function testExpNegZero() public view {
         // exp(-0) = 1
-        assertEq(optionPrice.expNeg(0), 1e18, "expNeg(0) should equal 1");
+        assertEq(op.expNeg(0), 1e18, "expNeg(0) should equal 1");
     }
     
-    function test_expNeg_one() public view {
-        // exp(-1) ≈ 0.3678794411714423215955237701614608674458111310317678345078368016
-        // Using 1e18 fixed point: 367879441171442321
+    function testExpNegOne() public view {
         assertApproxEqRel(
-            optionPrice.expNeg(1e18), 
+            op.expNeg(1e18), 
             367879441171442321, 
             0.01e18, // 1% tolerance
             "expNeg(1) should be approximately 0.3679"
         );
-    }
-    
-    function test_expNeg_two() public view {
-        // exp(-2) ≈ 0.1353352832366126918939994949724844034076315459095758814681588726
-        // Using 1e18 fixed point: 135335283236612691
+        
         assertApproxEqRel(
-            optionPrice.expNeg(2e18), 
+            op.expNeg(2e18), 
             135335283236612691, 
             0.01e18, // 1% tolerance
             "expNeg(2) should be approximately 0.1353"
         );
-    }
-    
-    function test_expNeg_large_values() public view {
+        
         // Test large values (should return 0 for x > 10)
-        assertEq(optionPrice.expNeg(11e18), 0, "expNeg(11) should equal 0");
-        assertEq(optionPrice.expNeg(100e18), 0, "expNeg(100) should equal 0");
+        assertEq(op.expNeg(11e18), 0, "expNeg(11) should equal 0");
+        assertEq(op.expNeg(100e18), 0, "expNeg(100) should equal 0");
     }
 
     // normCDF function tests
-    function test_CDF_zero() public view {
-        // CDF(0) = 0.5
+    function testCDF() public view {
         assertApproxEqRel(
-            optionPrice.normCDF(0), 
+            op.normCDF(0), 
             0.5e18, 
             0.01e18, // 1% tolerance
             "CDF(0) should equal 0.5"
         );
-    }
-    
-    function test_CDF_one() public view {
-        // CDF(1) ≈ 0.841344746068542948585232545632236508569979607683073846018840
-        // Using 1e18 fixed point: 841344746068542948
+        
         assertApproxEqRel(
-            optionPrice.normCDF(1e18), 
+            op.normCDF(1e18), 
             uint256(841344746068542948), 
             uint256(5e16), // 5% tolerance due to approximation
             "CDF(1) should be approximately 0.8413"
         );
-    }
-    
-    function test_CDF_negative_one() public view {
-        // CDF(-1) ≈ 0.158655253931457051414767454367763491430020392316926153981160
-        // Using 1e18 fixed point: 158655253931457051
+        
         assertApproxEqRel(
-            optionPrice.normCDF(-1e18), 
+            op.normCDF(-1e18), 
             158655253931457051, 
             0.05e18, // 5% tolerance due to approximation
             "CDF(-1) should be approximately 0.1587"
         );
-    }
-    
-    function test_CDF_two() public view {
-        // CDF(2) ≈ 0.977249868051820792829203194655283100470870641557131167191311
-        // Using 1e18 fixed point: 977249868051820792
+        
         assertApproxEqRel(
-            optionPrice.normCDF(2e18), 
+            op.normCDF(2e18), 
             977249868051820792, 
             0.05e18, // 5% tolerance due to approximation
             "CDF(2) should be approximately 0.9772"
@@ -96,7 +75,7 @@ contract OptionPriceTest is Test {
     }
 
     // Black-Scholes pricing tests
-    function test_BlackScholes_ATM_call() public view {
+    function testBlackScholesATMCall() public view {
         // Test case: ATM call option with 1 year to expiration
         uint256 underlying = 100e18; // $100
         uint256 strike = 100e18; // $100 (at-the-money)
@@ -104,7 +83,7 @@ contract OptionPriceTest is Test {
         uint256 volatility = 0.2e18; // 20% volatility
         uint256 riskFreeRate = 0.05e18; // 5% risk-free rate
         
-        uint256 callPrice = optionPrice.blackScholesPrice(
+        uint256 callPrice = op.blackScholesPrice(
             underlying, 
             strike, 
             timeToExpiration, 
@@ -122,8 +101,8 @@ contract OptionPriceTest is Test {
             "ATM call option price should be approximately $10.45"
         );
     }
-    
-    function test_BlackScholes_ATM_put() public view {
+
+    function testBlackScholesATMPut() public view {
         // Test put option (same parameters)
         uint256 underlying = 100e18; // $100
         uint256 strike = 100e18; // $100 (at-the-money)
@@ -132,7 +111,7 @@ contract OptionPriceTest is Test {
         uint256 riskFreeRate = 0.05e18; // 5% risk-free rate
         bool isPut = true;
         
-        uint256 putPrice = optionPrice.blackScholesPrice(
+        uint256 putPrice = op.blackScholesPrice(
             underlying, 
             strike, 
             timeToExpiration, 
@@ -150,15 +129,15 @@ contract OptionPriceTest is Test {
             "ATM put option price should be approximately $5.57"
         );
     }
-    
-    function test_BlackScholes_expired_ATM_call() public view {
+
+    function testBlackScholesExpiredATMCall() public view {
         // Test expired option (timeToExpiration = 0)
         uint256 underlying = 100e18; // $100
         uint256 strike = 100e18; // $100 (at-the-money)
         uint256 volatility = 0.2e18; // 20% volatility
         uint256 riskFreeRate = 0.05e18; // 5% risk-free rate
         
-        uint256 expiredCallPrice = optionPrice.blackScholesPrice(
+        uint256 expiredCallPrice = op.blackScholesPrice(
             underlying, 
             strike, 
             0, // expired
@@ -170,13 +149,13 @@ contract OptionPriceTest is Test {
         // For expired ATM call, intrinsic value should be 0
         assertEq(expiredCallPrice, 0, "Expired ATM call should have 0 value");
     }
-    
-    function test_BlackScholes_expired_ITM_call() public view {
+
+    function testBlackScholesExpiredITMCall() public view {
         // Test ITM expired call
         uint256 volatility = 0.2e18; // 20% volatility
         uint256 riskFreeRate = 0.05e18; // 5% risk-free rate
         
-        uint256 itmExpiredCallPrice = optionPrice.blackScholesPrice(
+        uint256 itmExpiredCallPrice = op.blackScholesPrice(
             120e18, // $120 underlying
             100e18, // $100 strike
             100, // near expired
@@ -192,7 +171,7 @@ contract OptionPriceTest is Test {
         );
     }
 
-    function test_BlackScholes_debug() public view {
+    function testBlackScholesDebug() public view {
         // Test case: ATM call option with 1 year to expiration
         uint256 underlying = 100e18; // $100
         uint256 strike = 100e18; // $100 (at-the-money)
@@ -201,38 +180,7 @@ contract OptionPriceTest is Test {
         uint256 riskFreeRate = 0.05e18; // 5% risk-free rate
         bool isCall = true;
         
-        // Debug intermediate values
-        uint256 t = (timeToExpiration * 1e18) / 31536000;
-        console.log("t (years):", t);
-        
-        uint256 sigmaSqrtT = optionPrice.sqrt((volatility * volatility * t) / 1e18);
-        console.log("sigma*sqrt(t):", sigmaSqrtT);
-        
-        uint256 Ks = underlying * 1e18 / strike;
-        console.log("Ks (underlying/strike):", Ks);
-        
-        int256 lnUS = Ks>1e18 ? optionPrice.ln(Ks) : -optionPrice.ln(1e36/Ks);
-        console.log("ln(underlying/strike):", lnUS);
-        
-        uint256 halfSigma2 = (volatility * volatility) / 2;
-        uint256 mu = ((riskFreeRate + halfSigma2) * t) / 1e18;
-        console.log("mu ((r + 0.5*sigma^2)*t):", mu);
-        
-        int256 d1 = (lnUS + int256(mu)) * 1e18 / int256(sigmaSqrtT);
-        console.log("d1:", d1);
-        
-        int256 d2 = d1 - int256(sigmaSqrtT);
-        console.log("d2:", d2);
-        
-        uint256 Nd1 = optionPrice.normCDF(d1);
-        uint256 Nd2 = optionPrice.normCDF(d2);
-        console.log("N(d1):", Nd1);
-        console.log("N(d2):", Nd2);
-        
-        uint256 expRT = optionPrice.expNeg(riskFreeRate * t / 1e18);
-        console.log("exp(-r*t):", expRT);
-        
-        uint256 callPrice = optionPrice.blackScholesPrice(
+        uint256 callPrice = op.blackScholesPrice(
             underlying, 
             strike, 
             timeToExpiration, 
@@ -244,60 +192,50 @@ contract OptionPriceTest is Test {
     }
 
     // ln function tests
-    function test_ln_one() public view {
+    function test_ln() public view {
         // ln(1) = 0
-        assertEq(optionPrice.ln(1e18), 0, "ln(1) should equal 0");
-    }
-    
-    function test_ln_one_point_five() public view {
-        // ln(1.5) ≈ 0.405465108108164381978013115464349136571990423462494197614014
-        // Using 1e18 fixed point: 405465108108164381
+
+        assertEq(op.log2(1.00000e18), 59.794705707972522261e18, "log2(1) should equal 0");
+
+        // assertEq(op.ln(1.00000e18), 0, "ln(1) should equal 0");
+        assertApproxEqRel(op.ln(1.00000e18), 0, .00001e18, "ln(1.000001) should be approximately 0");
+
+        
         assertApproxEqRel(
-            optionPrice.ln(15e17), // 1.5 in 1e18 fixed point
+            op.ln(15e17), // 1.5 in 1e18 fixed point
             405465108108164381, 
             0.01e18, // 1% tolerance
             "ln(1.5) should be approximately 0.4055"
         );
-    }
-    
-    function test_ln_two() public view {
-        // ln(2) ≈ 0.693147180559945309417232121458176568075500134360255254120680
-        // Using 1e18 fixed point: 693147180559945309
+        
         assertApproxEqRel(
-            optionPrice.ln(2e18), 
+            op.ln(2e18), 
             693147180559945309, 
             0.01e18, // 1% tolerance
             "ln(2) should be approximately 0.6931"
         );
-    }
-    
-    function test_ln_one_point_zero_five() public view {
-        // ln(1.05) ≈ 0.048790164169432048
+        
         assertApproxEqRel(
-            optionPrice.ln(105e16), // 1.05 in 1e18 fixed point
+            op.ln(1.05e18), // 1.05 in 1e18 fixed point
             48790164169432048, 
             0.01e18, // 1% tolerance
             "ln(1.05) should be approximately 0.0488"
         );
-    }
-    
-    function test_ln_boundary_values() public view {
         // Test boundary values
-        assertEq(optionPrice.ln(1e18), 0, "ln(1) should equal 0");
-        assertEq(optionPrice.ln(2e18), 693147180559945728, "ln(2) should equal grid value");
+        assertEq(op.ln(1e18), 0, "ln(1) should equal 0");
     }
     
-    function test_ln_out_of_range_low() public {
-        // Test that out-of-range values revert
-        vm.expectRevert("ln: x out of grid range");
-        optionPrice.ln(0.5e18); // x < 1
-    }
+    // function test_ln_out_of_range_low() public {
+    //     // Test that out-of-range values revert
+    //     vm.expectRevert("ln: x out of grid range");
+    //     op.ln(0.5e18); // x < 1
+    // }
     
-    function test_ln_out_of_range_high() public {
-        // Test that out-of-range values revert
-        vm.expectRevert("ln: x out of grid range");
-        optionPrice.ln(3e18); // x > 2
-    }
+    // function test_ln_out_of_range_high() public {
+    //     // Test that out-of-range values revert
+    //     vm.expectRevert("ln: x out of grid range");
+    //     op.ln(3e18); // x > 2
+    // }
 
     function test_normCDF_BlackScholes_values() public view {
         // Test the actual values produced by the Black-Scholes calculation
@@ -305,11 +243,11 @@ contract OptionPriceTest is Test {
         int256 d2 = 150000000000000000; // 0.15 in 1e18 fixed point (actual value from Black-Scholes)
         
         console.log("Testing normCDF for d1 = 0.35");
-        uint256 Nd1 = optionPrice.normCDF(d1);
+        uint256 Nd1 = op.normCDF(d1);
         console.log("N(d1):", Nd1);
         
         console.log("Testing normCDF for d2 = 0.15");
-        uint256 Nd2 = optionPrice.normCDF(d2);
+        uint256 Nd2 = op.normCDF(d2);
         console.log("N(d2):", Nd2);
         
         // Expected values for the actual Black-Scholes calculation:
@@ -317,5 +255,18 @@ contract OptionPriceTest is Test {
         // N(0.15) ≈ 0.5596
         assertApproxEqRel(Nd1, 636800000000000000, 0.1e18, "N(0.35) should be approximately 0.6368");
         assertApproxEqRel(Nd2, 559600000000000000, 0.1e18, "N(0.15) should be approximately 0.5596");
+    }
+
+
+    function testPrice() public view {
+        // opHook.initPool(0xd549Cb6Fd983a5E2b6252f1C41d5dA8Fd04B3339, 0); 
+        uint256 price = op.getPrice(
+            4600e18,
+            3000e18, 
+            1758143415, 
+            false, 
+            false 
+        );
+        console.log("option price", price / 1e18);
     }
 }

@@ -36,13 +36,14 @@ int24 constant TICK_SPACING = type(int16).max;
 
 struct OptionPool {
     address collateral;
+    address optionToken;
     address token0;
     address token1;
     uint24 fee;
     int24 tickSpacing;
     uint160 sqrtPriceX96;
-    address optionToken;
     uint256 expiration;
+    uint256 strike;
 }
 
 struct CurrentOptionPrice {
@@ -165,7 +166,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         uint256 amount = uint256(-amountSpecified);
         int128 amount_ = SafeCast.toInt128(int256(amount));
         uint256 collateralPrice = getCollateralPrice();
-        uint256 price = _getPrice(collateralPrice, option);
+        uint256 price = getPrice(collateralPrice, option);
 
         uint256 collateralAmount = calculateCollateral(amount, price);
         int128 collateralAmount_ = SafeCast.toInt128(int256(collateralAmount));
@@ -189,16 +190,14 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     }
 
     function availableCollateral() external view returns (uint256){
-        // Todo calculate how much collateral is available
-        // and determine the withdraw rate
         return collateral.balanceOf(address(this));
     }
 
-    function calculateCash(uint256 collateralAmount, uint256 price) internal pure returns (uint256){
+    function calculateCash(uint256 collateralAmount, uint256 price) public pure returns (uint256){
         return Math.mulDiv(collateralAmount, 1e36, price);
     }
 
-    function calculateCollateral(uint256 cashAmount, uint256 price) internal pure returns (uint256){
+    function calculateCollateral(uint256 cashAmount, uint256 price) public pure returns (uint256){
         return Math.mulDiv(cashAmount, price, 1e18);
     }
 
@@ -230,11 +229,13 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         emit Swap(msg.sender, to, cashTransferred, optionAmount, a.price);
     }
 
-    function _beforeSwap(address sender, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         override
-        returns (bytes4, BeforeSwapDelta, uint24){
+        returns (bytes4 selector, BeforeSwapDelta delta, uint24 zeroReturn){
         require(params.amountSpecified < 0, "amountSpecified must be negative");
+        zeroReturn = 0;
+        selector = BaseHook.beforeSwap.selector;
         Amount memory a = calculateValues(
             key.currency0, 
             key.currency1, 
@@ -243,47 +244,23 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             );
         IOptionToken option = IOptionToken(a.option);
         require(option.expirationDate() > block.timestamp, "Option expired");
-        console.log("sender", sender);
-        console.log("poolmanager", poolManager_);
-        console.log("a.cashAmount", a.cashAmount);
-        console.log("a.collateralAmount", a.collateralAmount);
-        console.log("a.amount", a.amount);
-        console.log("a.cashForOption", a.cashForOption);
-        console.log("a.option", a.option);
-        console.log("a.cashCurrency", a.cashCurrency.toId());
-        console.log("a.optionCurrency", a.optionCurrency.toId());
 
         if (a.cashForOption) {
             // Here we JIT create option tokens and let the flash accounting handle transfers
             option.mint(a.collateralAmount);
-            console.log("delta", NonzeroDeltaCount.read());
             poolManager.take(a.cashCurrency, address(this), a.amount);
-            console.log("delta", NonzeroDeltaCount.read());
             poolManager.sync(a.optionCurrency);
-            option.transfer(address(poolManager_), a.collateralAmount);
-            console.log("delta", NonzeroDeltaCount.read());
-            
-            console.log("option totalSupply", option.balanceOf(sender));
+            option.transfer(poolManager_, a.collateralAmount);
             poolManager.settle();
-            console.log("option totalSupply", option.balanceOf(sender));
-            console.log("delta", NonzeroDeltaCount.read());
-            BeforeSwapDelta delta = toBeforeSwapDelta(a.amount_, -a.collateralAmount_);
-            console.log("a.amount_", a.amount_);
-            console.log("a.collateralAmount_", a.collateralAmount_);
-            // console.log("delta", BeforeSwapDelta.unwrap(delta));
-            console.log("specifiedDelta", BeforeSwapDeltaLibrary.getSpecifiedDelta(delta));
-            console.log("unspecifiedDelta", BeforeSwapDeltaLibrary.getUnspecifiedDelta(delta));
-            // int256 dW = poolManager.currencyDelta(msg.sender, Currency.wrap(address(weth)));
-            // int256 dO2 = poolManager.currencyDelta(msg.sender, Currency.wrap(address(option2)));
-            // console.log("ownerDeltas", d0, d1 /*, dW, dO2*/);
-            return (BaseHook.beforeSwap.selector, delta, 0);
+            delta = toBeforeSwapDelta(a.amount_, -a.collateralAmount_);
         } else {
             // Here we have to take the option tokens from the caller and burn them
             poolManager.take(a.optionCurrency, address(this), a.amount);
-            option.redeem(a.amount);
             poolManager.sync(a.cashCurrency);
             cash.safeTransfer(poolManager_, a.cashAmount);
-            return (BaseHook.beforeSwap.selector, toBeforeSwapDelta(a.cashAmount_, -a.amount_), 0);
+            poolManager.settle();
+            option.redeem(a.amount);
+            delta = toBeforeSwapDelta(a.cashAmount_, -a.amount_);
         }
     }
 
@@ -295,18 +272,41 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             revert("Cannot Add Liquidity to This Pool ");
         }
 
-    function _beforeDonate(address, PoolKey calldata, SwapParams calldata, bytes calldata)
-        internal
-        pure
-        returns (bytes4, BeforeSwapDelta, uint24){
+    function _beforeDonate(address, PoolKey calldata, SwapParams calldata, bytes calldata) internal pure returns (bytes4, BeforeSwapDelta, uint24){
             revert("Cannot Donate to This Pool");
         }
 
-    function _getPrice( address option_) internal view returns (uint256) {
-        return _getPrice(getCollateralPrice(), option_);
+    
+    function getPriceX64(uint160 sqrtPriceX96) public pure returns (uint256) {
+        uint256 sqrtPriceX32 = (uint256(sqrtPriceX96)>>64);
+        // priceX96 is Q64.96, so we square to get the ratio
+        return uint256(sqrtPriceX32) * uint256(sqrtPriceX32);
     }
 
-    function _getPrice(uint256 collateralPrice, address option_) internal view returns (uint256) {
+    // Returns price of 1 token0 in token1 with 18 decimals precision
+    // How much token1 you need to buy 1 token0 is sqrtPriceX96
+    function getCollateralPrice() public view returns (uint256 price) {
+
+        (uint160 sqrtPriceX96,,,,,,) = pricePool.slot0();
+        // Calculate price with proper scaling
+        // priceX192 is in Q192.192 format, we need to extract the integer part
+        // uint256 priceX96 = priceX64 >> 96; // Convert from Q192.192 to Q96.96
+        price = (getPriceX64(sqrtPriceX96) * 10**18) >> 64; // Convert from Q96.96 to 1e18 fixed point
+        price = decimals1>decimals0 ? (price / power) : (price * power);
+ 
+        if (collateralIsOne) {
+            require(price > 0, "Price cannot be zero for inverse calculation");
+            price = 1e36 / price;
+        }
+
+        return price;
+    }
+
+    function getPrice( address option_) public view returns (uint256) {
+        return getPrice(getCollateralPrice(), option_);
+    }
+
+    function getPrice(uint256 collateralPrice, address option_) public view returns (uint256) {
         IOptionToken option = IOptionToken(option_);
         return optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), false);
     }
@@ -315,29 +315,15 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         prices = new CurrentOptionPrice[](pools.length);
         uint256 collateralPrice = getCollateralPrice();
         for (uint256 i = 0; i < pools.length; i++) {
-            if (pools[i].expiration<=block.timestamp) 
-                prices[i] = _getOptionPrice(pools[i].optionToken, collateralPrice);
+                prices[i] =  CurrentOptionPrice({
+                    collateralPrice: collateralPrice,
+                    collateral: address(collateral),
+                    optionToken: pools[i].optionToken,
+                    price: getPrice(collateralPrice, pools[i].optionToken)
+            });
         }
     }
 
-    function getOptionPrice(address optionToken) public view returns (CurrentOptionPrice memory) {
-        uint256 collateralPrice = getCollateralPrice();
-        return CurrentOptionPrice({
-            collateralPrice: collateralPrice,
-            collateral: address(collateral),
-            optionToken: optionToken,
-            price: _getPrice(collateralPrice, optionToken)
-        });
-    }
-
-    function _getOptionPrice(address optionToken, uint256 collateralPrice) internal view returns (CurrentOptionPrice memory) {
-        return CurrentOptionPrice({
-            collateralPrice: collateralPrice,
-            collateral: address(collateral),
-            optionToken: optionToken,
-            price: _getPrice(collateralPrice, optionToken)
-        });
-    }
     function initPool(
         address optionToken,
         uint24 fee
@@ -365,7 +351,8 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             tickSpacing: TICK_SPACING,
             sqrtPriceX96: SQRT_PRICE_X96,  //todo: verify this
             optionToken: optionToken,
-            expiration: expiration
+            expiration: expiration,
+            strike: optionToken_.strike()
         });
         pools.push(pool);
         options[optionToken] = true;
@@ -552,32 +539,4 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         super._withdraw(caller, receiver, owner, assets, shares);
     }
 
-    function squarePriceX64(uint160 sqrtPriceX96) internal pure returns (uint256) {
-        uint256 sqrtPriceX32 = (uint256(sqrtPriceX96)>>64);
-        // priceX96 is Q64.96, so we square to get the ratio
-        return uint256(sqrtPriceX32) * uint256(sqrtPriceX32);
-    }
-
-    // Returns price of 1 token0 in token1 with 18 decimals precision
-    // How much token1 you need to buy 1 token0 is sqrtPriceX96
-    function getCollateralPrice() public view returns (uint256 price) {
-
-        (uint160 sqrtPriceX96,,,,,,) = pricePool.slot0();
-        // Calculate price with proper scaling
-        // priceX192 is in Q192.192 format, we need to extract the integer part
-        // uint256 priceX96 = priceX64 >> 96; // Convert from Q192.192 to Q96.96
-        price = (squarePriceX64(sqrtPriceX96) * 10**18) >> 64; // Convert from Q96.96 to 1e18 fixed point
-        
-        if (decimals1 > decimals0) {
-            price = (price/power);
-        } else {
-            price = (price*power);
-        }
-        if (collateralIsOne) {
-            require(price > 0, "Price cannot be zero for inverse calculation");
-            price = 1e36 / price;
-        }
-
-        return price;
-    }
 }

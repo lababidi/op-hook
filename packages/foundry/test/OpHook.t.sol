@@ -175,6 +175,30 @@ contract OpHookTest is Test {
         usdc.approve(ConstantsMainnet.PERMIT2, 1000e6);
     }
 
+    function testPrices() public  {
+        opHook.initPool(0xd549Cb6Fd983a5E2b6252f1C41d5dA8Fd04B3339, 0);
+        CurrentOptionPrice[] memory prices = opHook.getPrices();
+        console.log("price1", prices[0].price / 1e18);
+        console.log("price2", prices[1].price / 1e18);  
+        console.log("price2", prices[2].price / 1e18);    
+    }
+
+
+    function testPrice() public  {
+        address option_ = 0xd549Cb6Fd983a5E2b6252f1C41d5dA8Fd04B3339;
+        opHook.initPool(option_, 0);
+        IOptionToken option = IOptionToken(option_);
+        console.log("strike", option.strike());
+        console.log("underlying", address(option.collateral()));
+        console.log("expiration", option.expirationDate());
+        console.log("isPut", option.isPut());
+        // CurrentOptionPrice memory price = opHook.getPrice();
+        // CurrentOptionPrice[] memory prices = opHook.getPrices();
+        // console.log("price1", prices[0].price / 1e18);
+        // console.log("price2", prices[1].price / 1e18);  
+        // console.log("price2", prices[2].price / 1e18);    
+    }
+
     function testSwapCallback() public {
         SwapCallback swapCallback = new SwapCallback(poolManager, opHook, poolKey1);
         address swapcb = address(swapCallback);

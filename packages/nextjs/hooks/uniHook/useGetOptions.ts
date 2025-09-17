@@ -1,8 +1,8 @@
 import { useContract } from "./useContract";
-import { Address, erc20Abi } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
+import { Address } from "viem";
+import { useReadContract } from "wagmi";
 
-type CurrentOptionPrice = {
+export type CurrentOptionPrice = {
   collateral: Address;
   optionToken: Address;
   price: bigint;
@@ -14,7 +14,7 @@ export const useGetOptions = () => {
   const abi = contract?.OpHook?.abi;
 
   const {
-    data: createdOptions,
+    data: options,
     error,
     refetch,
   } = useReadContract({
@@ -26,45 +26,46 @@ export const useGetOptions = () => {
     },
   });
 
-  console.log("createdOptions", createdOptions);
+  console.log("options", options);
   console.log("error", error);
 
-  const {
-    data: allOptions,
-    error: error_,
-    refetch: refetchNames,
-  } = useReadContracts({
-    contracts: ((createdOptions as CurrentOptionPrice[]) || [])
-      .map((option: CurrentOptionPrice) =>
-        option
-          ? {
-              address: option.optionToken,
-              abi: erc20Abi,
-              functionName: "name",
-            }
-          : undefined,
-      )
-      .filter(option => option !== undefined),
-    query: {
-      enabled: !!createdOptions,
-    },
-  });
+  //   const {
+  //     data: allOptions,
+  //     error: error_,
+  //     refetch: refetchNames,
+  //   } = useReadContracts({
+  //     contracts: ((options as CurrentOptionPrice[]) || [])
+  //       .map((option: CurrentOptionPrice) =>
+  //         option
+  //           ? {
+  //               address: option.optionToken,
+  //               abi: erc20Abi,
+  //               functionName: "name",
+  //             }
+  //           : undefined,
+  //       )
+  //       .filter(option => option !== undefined),
+  //     query: {
+  //       enabled: !!createdOptions,
+  //     },
+  //   });
 
-  const optionList = (allOptions || []).map((option, index) => ({
-    name: option.result as string,
-    address: ((createdOptions as CurrentOptionPrice[]) || [])[index]?.optionToken,
-  }));
+  //   const optionList = (allOptions || []).map((option, index) => ({
+  //     name: option.result as string,
+  //     address: ((createdOptions as CurrentOptionPrice[]) || [])[index]?.optionToken,
+  //   }));
 
   const refetchAll = () => {
     refetch();
-    refetchNames();
+    // refetchNames();
   };
 
   return {
-    createdOptions,
-    allOptions,
-    optionList,
-    error: error_,
+    options,
+    // createdOptions,
+    // allOptions,
+    // optionList,
+    // error: error_,
     refetch: refetchAll,
   };
 };
