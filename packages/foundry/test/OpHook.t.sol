@@ -129,8 +129,6 @@ contract OpHookTest is Test {
         // Deploy mock tokens
         weth = IWETH9(ConstantsMainnet.WETH);
         usdc = IERC20(ConstantsMainnet.USDC);
-        option1 = new MockOptionToken("WETH-4000", "MOPT4", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 4000 * 1e18, false);
-        option2 = new MockOptionToken("WETH-5000", "MOPT5", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 5000 * 1e18, false);
         // Deploy OpHook using HookMiner to get correct address
         uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG;
         bytes memory constructorArgs = abi.encode(
@@ -164,6 +162,8 @@ contract OpHookTest is Test {
         console.log("Address", hookAddress);
         console.log("Address", address(opHook));
 
+        option1 = new MockOptionToken("WETH-4000", "MOPT4", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 4000 * 1e18, false);
+        option2 = new MockOptionToken("WETH-5000", "MOPT5", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 5000 * 1e18, false);
         poolKey1 = opHook.initPool(address(option1), 0);
         poolKey2 = opHook.initPool(address(option2), 0);
 

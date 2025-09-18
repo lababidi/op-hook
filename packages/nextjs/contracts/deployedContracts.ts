@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     OpHook: {
-      address: "0xdca75fbed93988d06a7bb8c5c8c7350112d2c8a8",
+      address: "0x8c30f089ee553a74b42cc884777cb74e595688a8",
       abi: [
         {
           type: "constructor",
@@ -2478,7 +2478,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 23384103,
+      deployedOnBlock: 27465562,
     },
   },
 } as const;

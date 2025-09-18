@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(forge test:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(cast code:*)",
+      "Bash(cast call:*)"
     ],
     "deny": [],
     "ask": []

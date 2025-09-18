@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useGetOptions } from "../useGetOptions";
 
 export default function OpSwapFront() {
   const [isDark, setIsDark] = useState(false);
@@ -11,6 +12,7 @@ export default function OpSwapFront() {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     setIsDark(prefersDark);
   }, []);
+  const { prices } = useGetOptions();
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -53,92 +55,24 @@ export default function OpSwapFront() {
         <main className="max-w-4xl mx-auto">
           {/* Hero Section */}
           <section className="text-center mb-16">
-            <h2 className={`text-5xl font-light mb-6 tracking-wide ${isDark ? "text-white" : "text-black"}`}>
-              Decentralized Options Trading
-            </h2>
-            <p className={`text-xl mb-8 font-light ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-              Trade options on Ethereum with advanced DeFi protocols
-            </p>
             <div className="flex justify-center space-x-4">
-              <button
-                className={`px-6 py-3 rounded-lg font-light transition-colors ${
-                  isDark ? "bg-white hover:bg-gray-100 text-black" : "bg-black hover:bg-gray-800 text-white"
-                }`}
-              >
-                Start Trading
-              </button>
-              <button
-                className={`px-6 py-3 rounded-lg font-light border transition-colors ${
-                  isDark
-                    ? "border-gray-600 hover:bg-gray-900 text-white"
-                    : "border-gray-300 hover:bg-gray-50 text-black"
-                }`}
-              >
-                Learn More
-              </button>
-            </div>
-          </section>
-
-          {/* Features Grid */}
-          <section className="grid md:grid-cols-3 gap-8 mb-16">
-            <div
-              className={`p-6 rounded-xl border ${
-                isDark ? "bg-gray-900 border-gray-800" : "bg-gray-50 border-gray-200"
-              }`}
-            >
-              <h3 className="text-2xl font-light mb-4">🔄 Liquidity</h3>
-              <p className={`font-light ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                Deep liquidity pools for seamless options trading
-              </p>
-            </div>
-
-            <div
-              className={`p-6 rounded-xl border ${
-                isDark ? "bg-gray-900 border-gray-800" : "bg-gray-50 border-gray-200"
-              }`}
-            >
-              <h3 className="text-2xl font-light mb-4">⚡ Speed</h3>
-              <p className={`font-light ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                Instant settlement on Ethereum L2 networks
-              </p>
-            </div>
-
-            <div
-              className={`p-6 rounded-xl border ${
-                isDark ? "bg-gray-900 border-gray-800" : "bg-gray-50 border-gray-200"
-              }`}
-            >
-              <h3 className="text-2xl font-light mb-4">🔒 Security</h3>
-              <p className={`font-light ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                Audited smart contracts with advanced security
-              </p>
-            </div>
-          </section>
-
-          {/* Stats Section */}
-          <section
-            className={`p-8 rounded-xl mb-16 border ${
-              isDark ? "bg-gray-900 border-gray-800" : "bg-gray-50 border-gray-200"
-            }`}
-          >
-            <h3 className="text-2xl font-light text-center mb-8">Platform Stats</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-              <div>
-                <div className={`text-3xl font-light ${isDark ? "text-white" : "text-black"}`}>$50M+</div>
-                <div className={`text-sm font-light ${isDark ? "text-gray-400" : "text-gray-500"}`}>Total Volume</div>
-              </div>
-              <div>
-                <div className={`text-3xl font-light ${isDark ? "text-white" : "text-black"}`}>10K+</div>
-                <div className={`text-sm font-light ${isDark ? "text-gray-400" : "text-gray-500"}`}>Active Traders</div>
-              </div>
-              <div>
-                <div className={`text-3xl font-light ${isDark ? "text-white" : "text-black"}`}>99.9%</div>
-                <div className={`text-sm font-light ${isDark ? "text-gray-400" : "text-gray-500"}`}>Uptime</div>
-              </div>
-              <div>
-                <div className={`text-3xl font-light ${isDark ? "text-white" : "text-black"}`}>24/7</div>
-                <div className={`text-sm font-light ${isDark ? "text-gray-400" : "text-gray-500"}`}>Trading</div>
-              </div>
+              {prices && prices.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl">
+                  {prices.map((price, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-lg border text-center ${
+                        isDark ? "bg-gray-900 border-gray-800 text-white" : "bg-gray-100 border-gray-300 text-black"
+                      }`}
+                    >
+                      <div className="text-lg font-semibold">{price.optionToken}</div>
+                      <div className="text-2xl font-light mt-2">${price.price}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={isDark ? "text-gray-400" : "text-gray-500"}>Loading prices...</div>
+              )}
             </div>
           </section>
         </main>
