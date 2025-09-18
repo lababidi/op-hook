@@ -11,12 +11,15 @@ evm_version = "cancun"
 gas_limit = "18446744073709551615"
 bytecode_hash = "none"
 fs_permissions = [{ access = "read-write", path = "./"}]
-
+#mnemonic = "address field fossil hand rug fancy lawn awkward render hunt auto nephew"
+#fork_url = https://eth.llamarpc.com
+#fork_block_number = 230000000 
 
 [rpc_endpoints]
 default_network = "http://127.0.0.1:8545"
+mainnet = "https://eth.llamarpc.com"
+unichain = "https://0xrpc.io/uni"
 
-mainnet = "https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}"
 sepolia = "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 arbitrum = "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 arbitrumSepolia = "https://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
