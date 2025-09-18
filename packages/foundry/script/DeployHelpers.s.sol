@@ -68,7 +68,8 @@ contract ScaffoldETHDeploy is Script {
 
         string memory chainName;
 
-        chainName = getChain().name;
+        // chainName = getChain().name;
+        chainName = "unichain";
         jsonWrite = vm.serializeString(jsonWrite, "networkName", chainName);
         vm.writeJson(jsonWrite, path);
     }
