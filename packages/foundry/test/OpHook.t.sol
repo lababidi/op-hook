@@ -129,6 +129,8 @@ contract OpHookTest is Test {
         // Deploy mock tokens
         weth = IWETH9(ConstantsMainnet.WETH);
         usdc = IERC20(ConstantsMainnet.USDC);
+        option1 = new MockOptionToken("WETH-4000", "MOPT4", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 4000 * 1e18, false);
+        option2 = new MockOptionToken("WETH-5000", "MOPT5", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 5000 * 1e18, false);
         // Deploy OpHook using HookMiner to get correct address
         uint160 flags = Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG;
         bytes memory constructorArgs = abi.encode(
@@ -162,8 +164,6 @@ contract OpHookTest is Test {
         console.log("Address", hookAddress);
         console.log("Address", address(opHook));
 
-        option1 = new MockOptionToken("WETH-4000", "MOPT4", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 4000 * 1e18, false);
-        option2 = new MockOptionToken("WETH-5000", "MOPT5", ConstantsMainnet.WETH, ConstantsMainnet.USDC, block.timestamp + 30 days, 5000 * 1e18, false);
         poolKey1 = opHook.initPool(address(option1), 0);
         poolKey2 = opHook.initPool(address(option2), 0);
 
@@ -213,58 +213,6 @@ contract OpHookTest is Test {
 
     function testRouterSwap() public {
         UniversalRouter router = UniversalRouter(payable(ConstantsMainnet.UNIVERSALROUTER));
-        deal(ConstantsMainnet.USDC, address(this), 1000e6);
-        usdc.approve(address(router), 1000e6);
-        usdc.approve(address(poolManager), 1000e6);
-        usdc.approve(ConstantsMainnet.PERMIT2, 1000e6);
-        
-        IPermit2 permit2 = IPermit2(ConstantsMainnet.PERMIT2);
-        permit2.approve(address(usdc), address(router), type(uint160).max, uint48(block.timestamp + 1 days));
-        permit2.approve(address(usdc), address(poolManager), type(uint160).max, uint48(block.timestamp + 1 days));
-
-        // currency0 = option, currency1 = usdc
-
-        uint256 V4_SWAP = 0x10;
-
-        bytes memory commands = abi.encodePacked(uint8(V4_SWAP));
-        bytes memory actions = abi.encodePacked(
-            uint8(Actions.SWAP_EXACT_IN_SINGLE),
-            uint8(Actions.SETTLE_ALL),
-            uint8(Actions.TAKE_ALL)
-        );
-
-        bytes[] memory params = new bytes[](3);
-
-        params[0] = abi.encode(
-            IV4Router.ExactInputSingleParams({
-                poolKey: poolKey1,
-                zeroForOne: false,
-                amountIn: 1e6,
-                amountOutMinimum: 0,
-                hookData: bytes("")
-            })
-        );
-        params[1] = abi.encode(poolKey1.currency1, type(uint256).max);
-        params[2] = abi.encode(poolKey1.currency0, 0);
-
-        bytes[] memory inputs = new bytes[](1);
-        inputs[0] = abi.encode(actions, params);
-
-        router.execute(commands, inputs, block.timestamp + 20);
-
-        console.log("option1 balance", option1.balanceOf(address(this)));
-        console.log("option1 balance", option1.balanceOf(address(opHook)));
-        console.log("WETH balance", weth.balanceOf(address(opHook)));
-        console.log("USDC balance", usdc.balanceOf(address(this)));
-
-        console.log("USDC balance", usdc.balanceOf(address(opHook)));
-        console.log("USDC balance", usdc.balanceOf(address(this)));
-        console.log("USDC balance", usdc.balanceOf(address(poolManager)));
-    }
-
-
-    function testRouterSwapUnichain() public {
-        UniversalRouter router = UniversalRouter(payable(ConstantsUnichain.UNIVERSALROUTER));
         deal(ConstantsMainnet.USDC, address(this), 1000e6);
         usdc.approve(address(router), 1000e6);
         usdc.approve(address(poolManager), 1000e6);
