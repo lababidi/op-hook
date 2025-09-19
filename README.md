@@ -5,6 +5,8 @@ We're excited to have you. Let's jump into it.
 
 https://opswap.fi/opswap (see UI section below)
 
+[Demo Video https://youtu.be/buTX0BUm0xU](https://youtu.be/buTX0BUm0xU)
+
 OpSwap is the only American Options market on Uniswap. 
 It is deployed on Unichain Mainnet!
 
