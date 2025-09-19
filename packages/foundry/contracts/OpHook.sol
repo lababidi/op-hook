@@ -172,6 +172,9 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         int128 collateralAmount_ = SafeCast.toInt128(int256(collateralAmount));
         uint256 cashAmount = Math.mulDiv(amount, 1e36, price);
         int128 cashAmount_ = SafeCast.toInt128(int256(cashAmount));
+        console.log("token0", token0_);
+        console.log("token1", token1_);
+        console.log("cashforOption", cashForOption);
         amounts = Amount({
             amount:amount,
             amount_:amount_,
