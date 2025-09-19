@@ -1,164 +1,114 @@
 # 🎯 OpSwap - Decentralized Options Trading Platform
+Welcome to OpSwap! (No Partner Integrations)
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Scaffold-ETH 2 Docs</a> |
-  <a href="https://scaffoldeth.io">Scaffold-ETH 2 Website</a>
-</h4>
+We're excited to have you. Let's jump into it.
 
-🚀 A decentralized options trading platform built on Ethereum using Scaffold-ETH 2, Uniswap V4 hooks, and advanced DeFi protocols. OpSwap enables users to trade options with deep liquidity pools and sophisticated pricing models.
+https://opswap.fi/opswap (see UI section below)
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, TypeScript, and Uniswap V4.
+OpSwap is the only American Options market on Uniswap. 
+It is deployed on Unichain Mainnet!
 
-## 🎯 Project Overview
+So it doesn't get lost: 
 
-OpSwap is a comprehensive options trading platform that combines:
+Many thanks to TWADE, SAUCEPOINT, RAPHAEL for all their hard work and help this cohort. I learned a lot and am extremely grateful for being a part of this course. 
+I will be continuing my work on this project and might even try to find other hooks to try and build.
 
-- **🪝 Uniswap V4 Hooks**: Custom hooks for options trading integration
-- **💰 Option Pool Vaults**: ERC4626 compliant vaults for managing option assets
-- **📊 Black-Scholes Pricing**: Advanced options pricing using mathematical models
-- **🔄 Liquidity Management**: Automated liquidity provision and management
-- **🔐 Secure Trading**: Whitelisted tokens and permissioned trading
+Important file locations:
+```
+packages/foundry/contracts
+packages/foundry/test
+packages/foundry/scripts
+packages/nextjs/app/opswap - React UI
+packages/nextjs/contracts/deployedContracts.ts - the Deployed contract addresses/abis
+```
 
-## 🏗️ Architecture
 
-### Smart Contracts
+## Ok, so how does it work?
+OpSwap allows a user to swap "cash" (USDC) for an ERC20 based option.
+The option is a GreekFi option (See https://greek.fi), meaning it's fully collateralized.
+This means that in order to buy an option, it must be backed by collateral.
+This is where the Hook comes in!
+The OpSwap hook is a _beforeSwap based hook (similar to EulerSwap and Constant Sum Swap by Saucepoint).
+1. The Hook accepts cash (as USDC)
+2. Based on the chosed option, the hook calculates a price using Black-Scholes
+3. Then an outputAmount of option based on price and input cash 
+4. The Hook interacts with the GreekFi Options protocol to mint/collateralize WETH for options (outputAmount)
+5. Options are then settled to the user
 
-- **`OpHook.sol`**: Uniswap V4 hook for options trading integration
-- **`OptionPool.sol`**: Core options pool with cell-based liquidity management
-- **`OptionPoolVault.sol`**: ERC4626 vault for option pool asset management
-- **`OptionPrice.sol`**: Black-Scholes options pricing implementation
-- **`IOptionToken.sol`**: Interface for option token interactions
+The process above is also done in reverse for an option->cash swap as well!
 
-### Frontend
+# User Interface
 
-- **NextJS App**: Modern React frontend with TypeScript
-- **OpSwap Interface**: Dedicated options trading interface at `/opswapfront`
-- **Debug Interface**: Contract interaction and testing tools
-- **Block Explorer**: Local transaction monitoring
+The ugliest UI (see https://opswap.fi/opswap) was created to demonstrate the ability to:
+1. show the option prices from Uni Pools
+2. swap USDC for option tokens
 
-## 🚀 Quickstart
+The swap "works" in that it does call execute to the Universal Router. 
+Permit2 and Allowances have not been programmed in yet. I trust that end to end everything works based on testing (see below).
+Many UI enhancements are needed: such as showing which exact option (not just the address) you are buying. 
+I was simply happy that prices were showing.
 
-### Prerequisites
+![alt text](image0.png)
 
-Before you begin, you need to install the following tools:
+![alt text](image-1.png)
+# Has this been tested?
+(Test results are below.)
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+What tests were created?
+1. Pricing tests to verify that the Black Scholes Pricing works as intended
+2. EthMainnet fork end-end testing
+3. Unichain fork end-end testing
+4. Most importantly Deployed Unichain testing
 
-### Installation & Setup
+Summary: Not only individual functional tests were created, but tests to verify the functionality of swapping on the actual Universal Router (yes, that UR!) on EthMainnet and Unichain Mainnet with the Hook! 
+In addition, using a deployed Hook on Unichain with the Universal Router. 
+Also we created Callback for the PoolManager as an additional way to test in all the above fork-tests.
 
-1. **Install dependencies**:
 ```bash
-yarn install
+
+mla@Mahmouds-Mac-mini foundry % forge test
+[⠊] Compiling...
+No files changed, compilation skipped
+
+Ran 11 tests for test/OptionPrice.t.sol:OptionPriceTest
+[PASS] testBlackScholesATMCall() (gas: 53769)
+[PASS] testBlackScholesATMPut() (gas: 53516)
+[PASS] testBlackScholesDebug() (gas: 51019)
+[PASS] testBlackScholesExpiredATMCall() (gas: 6299)
+[PASS] testBlackScholesExpiredITMCall() (gas: 51461)
+[PASS] testCDF() (gas: 22192)
+[PASS] testExpNegOne() (gas: 16793)
+[PASS] testExpNegZero() (gas: 5935)
+[PASS] testPrice() (gas: 49627)
+[PASS] test_ln() (gas: 104368)
+[PASS] test_normCDF_BlackScholes_values() (gas: 19698)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 557.82ms (3.33ms CPU time)
+
+Ran 4 tests for test/OpHookUni.t.sol:OpHookTest
+[PASS] testPrice() (gas: 395159)
+[PASS] testPrices() (gas: 351479)
+[PASS] testRouterSwap() (gas: 518335)
+[PASS] testSwapCallback() (gas: 1526059)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 638.38ms (4.71ms CPU time)
+
+Ran 4 tests for test/OpHookUniDeployed.t.sol:OpHookTest
+[PASS] testPrice() (gas: 514251)
+[PASS] testPrices() (gas: 470568)
+[PASS] testRouterSwap() (gas: 512525)
+[PASS] testSwapCallback() (gas: 1524249)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 639.23ms (4.88ms CPU time)
+
+Ran 4 tests for test/OpHook.t.sol:OpHookTest
+[PASS] testPrice() (gas: 248599)
+[PASS] testPrices() (gas: 384354)
+[PASS] testRouterSwap() (gas: 425868)
+[PASS] testSwapCallback() (gas: 1414783)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 884.36ms (1.87ms CPU time)
+
+Ran 4 test suites in 885.80ms (2.72s CPU time): 23 tests passed, 0 failed, 0 skipped (23 total tests)
 ```
 
-2. **Start local blockchain** (Terminal 1):
-```bash
-yarn chain
-```
-
-3. **Deploy contracts** (Terminal 2):
-```bash
-yarn deploy
-```
-
-4. **Start frontend** (Terminal 3):
-```bash
-yarn start
-```
-
-5. **Access the application**:
-   - Main app: `http://localhost:3000`
-   - OpSwap interface: `http://localhost:3000/opswapfront`
-   - Debug contracts: `http://localhost:3000/debug`
-   - Block explorer: `http://localhost:3000/blockexplorer`
-
-### Testing
-
-Run smart contract tests:
-```bash
-yarn foundry:test
-```
-
-## 🎯 Key Features
-
-### Options Trading
-- **Call & Put Options**: Support for both call and put option types
-- **Black-Scholes Pricing**: Mathematical options pricing model
-- **Strike Price Management**: Flexible strike price configuration
-- **Expiration Handling**: Automated expiration and settlement
-
-### Liquidity Management
-- **Cell-Based Liquidity**: Efficient liquidity distribution across price ranges
-- **Fee Collection**: Automated fee collection and distribution
-- **Position Management**: Advanced position tracking and management
-- **Vault Integration**: ERC4626 compliant vault for asset management
-
-### Security & Access Control
-- **Whitelisted Tokens**: Permissioned trading for approved tokens
-- **Access Control**: Role-based permissions for admin functions
-- **Emergency Pause**: Circuit breakers for emergency situations
-- **Reentrancy Protection**: Secure contract interactions
-
-## 🛠️ Development
-
-### Smart Contract Development
-
-- **Contracts**: `packages/foundry/contracts/`
-- **Tests**: `packages/foundry/test/`
-- **Deployment Scripts**: `packages/foundry/script/`
-
-### Frontend Development
-
-- **Main App**: `packages/nextjs/app/page.tsx`
-- **OpSwap Interface**: `packages/nextjs/app/opswapfront/page.tsx`
-- **Components**: `packages/nextjs/components/`
-- **Hooks**: `packages/nextjs/hooks/scaffold-eth/`
-
-### Configuration
-
-- **Scaffold Config**: `packages/nextjs/scaffold.config.ts`
-- **Foundry Config**: `packages/foundry/foundry.toml`
-- **Deployed Contracts**: `packages/nextjs/contracts/deployedContracts.ts`
-
-## 🔧 Contract Interactions
-
-### Reading Data
-```typescript
-const { data: optionPrice } = useScaffoldReadContract({
-  contractName: "OptionPrice",
-  functionName: "blackScholesPrice",
-  args: [underlying, strike, timeToExpiration, volatility, riskFreeRate, isCall],
-});
-```
-
-### Writing Data
-```typescript
-const { writeContractAsync: writeOpHookAsync } = useScaffoldWriteContract({
-  contractName: "OpHook"
-});
-
-await writeOpHookAsync({
-  functionName: "addLiquidity",
-  args: [permit, key, liquidityParams, hookData],
-});
-```
-
-## 📚 Documentation
-
-- [Scaffold-ETH 2 Documentation](https://docs.scaffoldeth.io)
-- [Uniswap V4 Documentation](https://docs.uniswap.org/)
-- [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts/)
-
-## 🤝 Contributing
-
-We welcome contributions to OpSwap! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENCE) file for details.
 
 ## ⚠️ Disclaimer
 
-This software is for educational and development purposes. Use at your own risk. The contracts have not been audited and should not be used in production without proper security review.
+Use at your own risk. The contracts have not been audited and should not be used in production without proper security review.
