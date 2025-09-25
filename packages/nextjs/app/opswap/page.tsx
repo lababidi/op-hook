@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useGetOptions } from "../useGetOptions";
+import { OptionInfo } from "./OptionInfo";
 import { useBuyOption } from "./useBuyOption";
 
 export default function OpSwapFront() {
@@ -15,7 +16,15 @@ export default function OpSwapFront() {
   }, []);
   const { prices } = useGetOptions();
   const buyOption = useBuyOption();
-  const [buyAmount, setBuyAmount] = useState(1);
+  const [buyAmount, setBuyAmount] = useState<number[]>([]);
+
+  const handleBuyAmountChange = (idx: number, value: number) => {
+    setBuyAmount(prev => {
+      const updated = [...prev];
+      updated[idx] = value;
+      return updated;
+    });
+  };
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -60,7 +69,7 @@ export default function OpSwapFront() {
           <section className="text-center mb-16">
             <div className="flex justify-center space-x-4">
               {prices && prices.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl">
                   {prices.map((price, idx) => (
                     <div
                       key={idx}
@@ -68,29 +77,45 @@ export default function OpSwapFront() {
                         isDark ? "bg-gray-900 border-gray-800 text-white" : "bg-gray-100 border-gray-300 text-black"
                       }`}
                     >
-                      <div className="text-lg font-semibold">{price.optionToken}</div>
-                      <div className="text-2xl font-light mt-2">${(Number(price.price) / 1e18).toFixed(2)}</div>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        placeholder="Amount"
-                        className={`mt-4 w-full px-3 py-2 rounded-lg border focus:outline-none ${
-                          isDark ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-black"
-                        }`}
-                        value={buyAmount}
-                        onChange={e => {
-                          setBuyAmount(e.target.valueAsNumber);
-                        }}
-                      />
-                      <button
-                        onClick={() => {
-                          buyOption(buyAmount, price.optionToken);
-                        }}
-                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                      >
-                        Buy
-                      </button>
+                      <OptionInfo option={price.optionToken as `0x${string}`} />
+                      <div className="text-2xl font-light mt-2">
+                        Price/Option: ${(Number(price.price) / 1e18).toFixed(2)}
+                      </div>
+                      <div className="flex flex-col items-center gap-3 mt-4">
+                        Amount
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          placeholder="Amount of options"
+                          className={`w-20 px-3 py-2 rounded-lg border focus:outline-none ${
+                            isDark ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-black"
+                          }`}
+                          value={buyAmount[idx]}
+                          onChange={e => {
+                            handleBuyAmountChange(idx, Number(e.target.value));
+                          }}
+                        />
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-20 px-3 py-2 rounded-lg  focus:outline-none text-center ${
+                              isDark ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-black"
+                            }`}
+                          >
+                            {buyAmount[idx] > 0
+                              ? "$" + (Number(price.price * BigInt(Math.round(buyAmount[idx] * 100))) / 1e20).toFixed(2)
+                              : ""}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            buyOption(buyAmount[idx], price.optionToken);
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        >
+                          Buy in USDC
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
