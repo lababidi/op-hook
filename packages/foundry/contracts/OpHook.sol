@@ -255,6 +255,8 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             poolManager.sync(a.optionCurrency);
             option.transfer(poolManager_, a.collateralAmount);
             poolManager.settle();
+            console.log("collateralAmount_", a.collateralAmount_);
+            console.log("amount_", a.amount_);
             delta = toBeforeSwapDelta(a.amount_, -a.collateralAmount_);
         } else {
             // Here we have to take the option tokens from the caller and burn them
@@ -263,7 +265,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             cash.safeTransfer(poolManager_, a.cashAmount);
             poolManager.settle();
             option.redeem(a.amount);
-            delta = toBeforeSwapDelta(a.cashAmount_, -a.amount_);
+            delta = toBeforeSwapDelta( a.amount_, -a.cashAmount_);
         }
     }
 

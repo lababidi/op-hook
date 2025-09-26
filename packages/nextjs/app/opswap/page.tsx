@@ -17,6 +17,7 @@ export default function OpSwapFront() {
   const { prices } = useGetOptions();
   const buyOption = useBuyOption();
   const [buyAmount, setBuyAmount] = useState<number[]>([]);
+  const [cashAmount, setCashAmount] = useState<number[]>([]);
 
   const handleBuyAmountChange = (idx: number, value: number) => {
     setBuyAmount(prev => {
@@ -94,6 +95,11 @@ export default function OpSwapFront() {
                           value={buyAmount[idx]}
                           onChange={e => {
                             handleBuyAmountChange(idx, Number(e.target.value));
+                            setCashAmount(prev => {
+                              const updated = [...prev];
+                              updated[idx] = Number(e.target.value) * (Number(price.price) / 1e18);
+                              return updated;
+                            });
                           }}
                         />
                         <div className="flex items-center gap-2">
@@ -103,13 +109,14 @@ export default function OpSwapFront() {
                             }`}
                           >
                             {buyAmount[idx] > 0
-                              ? "$" + (Number(price.price * BigInt(Math.round(buyAmount[idx] * 100))) / 1e20).toFixed(2)
+                              ? "$" +
+                                (Number(price.price * BigInt(Math.round(buyAmount[idx] * 10000))) / 1e22).toFixed(2)
                               : ""}
                           </div>
                         </div>
                         <button
                           onClick={() => {
-                            buyOption(buyAmount[idx], price.optionToken);
+                            buyOption(cashAmount[idx], price.optionToken);
                           }}
                           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                         >
