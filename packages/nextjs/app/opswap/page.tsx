@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGetOptions } from "../useGetOptions";
 import { OptionInfo } from "./OptionInfo";
+import { useAddOption } from "./useAddOption";
 import { useBuyOption } from "./useBuyOption";
 
 export default function OpSwapFront() {
@@ -16,8 +17,10 @@ export default function OpSwapFront() {
   }, []);
   const { prices } = useGetOptions();
   const buyOption = useBuyOption();
+  const addOption = useAddOption();
   const [buyAmount, setBuyAmount] = useState<number[]>([]);
   const [cashAmount, setCashAmount] = useState<number[]>([]);
+  const [newPoolAddress, setNewPoolAddress] = useState<string>("0x");
 
   const handleBuyAmountChange = (idx: number, value: number) => {
     setBuyAmount(prev => {
@@ -129,6 +132,25 @@ export default function OpSwapFront() {
               ) : (
                 <div className={isDark ? "text-gray-400" : "text-gray-500"}>Loading prices...</div>
               )}
+            </div>
+          </section>
+          <section className="text-center">
+            <div>
+              <input
+                className="border rounded-lg px-3 py-2"
+                type="text"
+                onChange={e => setNewPoolAddress(e.target.value)}
+                placeholder="0x..."
+              />
+              <button
+                onClick={() => {
+                  console.log("New Pool Address:", newPoolAddress);
+                  addOption(newPoolAddress);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+              >
+                Add New Option to Pool
+              </button>
             </div>
           </section>
         </main>

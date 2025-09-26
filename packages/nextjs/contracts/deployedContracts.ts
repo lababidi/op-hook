@@ -2483,7 +2483,7 @@ const deployedContracts = {
   },
   31337: {
     OpHook: {
-      address: "0xd8f1220eccf634fd369323e2689ed80842d788a8",
+      address: "0xcb5f26317236b0e1f4d8bf91ae1b23b6816488a8",
       abi: [
         {
           type: "constructor",
@@ -4954,7 +4954,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 28082679,
+      deployedOnBlock: 28146659,
     },
   },
 } as const;
