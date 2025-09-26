@@ -87,7 +87,7 @@ export default function OpSwapFront() {
                         <input
                           type="number"
                           min={0}
-                          step={0.01}
+                          step={0.001}
                           placeholder="Amount of options"
                           className={`w-20 px-3 py-2 rounded-lg border focus:outline-none ${
                             isDark ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-black"
@@ -110,7 +110,7 @@ export default function OpSwapFront() {
                           >
                             {buyAmount[idx] > 0
                               ? "$" +
-                                (Number(price.price * BigInt(Math.round(buyAmount[idx] * 10000))) / 1e22).toFixed(2)
+                                (Number(price.price * BigInt(Math.round(buyAmount[idx] * 10000))) / 1e22).toFixed(3)
                               : ""}
                           </div>
                         </div>
