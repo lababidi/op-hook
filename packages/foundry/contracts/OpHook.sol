@@ -7,7 +7,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IPoolManager, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 
@@ -29,7 +29,7 @@ import {IPermit2} from "./IPermit2.sol";
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {console} from "forge-std/console.sol";
-import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
+// import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
 
 uint160 constant SQRT_PRICE_X96 = 1<<96;
 int24 constant TICK_SPACING = type(int16).max;
@@ -72,6 +72,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     using PoolIdLibrary for PoolKey;
     using Math for uint256;
     using SafeERC20 for IERC20;
+    using SafeERC20 for IOptionToken;
 
     // ============ Events ============
     
@@ -227,7 +228,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         uint256 optionAmount = calculateCollateral(cashTransferred, a.price);
 
         option.mint(optionAmount);
-        option.transfer(to, optionAmount);
+        option.safeTransfer(to, optionAmount);
 
         emit Swap(msg.sender, to, cashTransferred, optionAmount, a.price);
     }
@@ -253,7 +254,7 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             option.mint(a.collateralAmount);
             poolManager.take(a.cashCurrency, address(this), a.amount);
             poolManager.sync(a.optionCurrency);
-            option.transfer(poolManager_, a.collateralAmount);
+            option.safeTransfer(poolManager_, a.collateralAmount);
             poolManager.settle();
             console.log("collateralAmount_", a.collateralAmount_);
             console.log("amount_", a.amount_);

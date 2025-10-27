@@ -1,53 +1,35 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import "forge-std/Test.sol";
-import "forge-std/console.sol";
-import "../contracts/OpHook.sol";
-import "../contracts/IOptionToken.sol";
-import "../contracts/MockOptionToken.sol";
+import {Test} from "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
+import {OpHook, CurrentOptionPrice} from "../contracts/OpHook.sol";
+import {IOptionToken} from "../contracts/IOptionToken.sol";
+import {MockOptionToken} from "../contracts/MockOptionToken.sol";
 import {HookMiner} from "@openzeppelin/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
 import { UniversalRouter } from "@uniswap/universal-router/contracts/UniversalRouter.sol";
 import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-import { Commands } from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 
-
-import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
-
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {SwapParams, PoolKey} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {OptionPrice, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
 
-import {IOptionToken} from "../contracts/IOptionToken.sol";
+
 import {IPermit2} from "../contracts/IPermit2.sol";
 
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {SafeCallback} from "./SafeCallback.sol";
-// import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
+import {NonzeroDeltaCount} from "@openzeppelin/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
 import {ConstantsUnichain} from "../contracts/ConstantsUnichain.sol";
 
 contract SwapCallback is SafeCallback {
@@ -118,7 +100,7 @@ contract OpHookTest is Test {
     IPoolManager poolManager;
 
     IPermit2 permit2;
-    string RPC_URL = "https://unichain.drpc.org";
+    string rpc = "https://unichain.drpc.org";
     uint mainnetFork;
     
     function setUp() public {
@@ -127,7 +109,7 @@ contract OpHookTest is Test {
         permit2_ = ConstantsUnichain.PERMIT2;
         poolManager_ = ConstantsUnichain.POOLMANAGER;
 
-        mainnetFork = vm.createSelectFork(RPC_URL, 27503100);
+        mainnetFork = vm.createSelectFork(rpc, 27503100);
         poolManager = IPoolManager(poolManager_);
 
         deal(address(this), 10000e20 ether);
@@ -254,9 +236,9 @@ contract OpHookTest is Test {
 
         // currency0 = option, currency1 = usdc
 
-        uint256 V4_SWAP = 0x10;
+        uint256 v4Swap = 0x10;
 
-        bytes memory commands = abi.encodePacked(uint8(V4_SWAP));
+        bytes memory commands = abi.encodePacked(uint8(v4Swap));
         bytes memory actions = abi.encodePacked(
             uint8(Actions.SWAP_EXACT_IN_SINGLE),
             uint8(Actions.SETTLE_ALL),

@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import { Script, console } from "forge-std/Script.sol";
+import {  console } from "forge-std/Script.sol";
 import { ScaffoldETHDeploy } from "./DeployHelpers.s.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { PoolId } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import { CurrencyLibrary } from "@uniswap/v4-core/src/types/Currency.sol";
 import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 
 /**

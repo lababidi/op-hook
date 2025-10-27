@@ -2,8 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {Script, console} from "forge-std/Script.sol";
-import "../contracts/OptionPoolVault.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Mock ERC20 token for deployment
 contract MockERC20 is ERC20 {
@@ -18,6 +17,7 @@ contract MockOptionPool {
     
     constructor(address _vault) {
         vault = _vault;
+        console.log("MockOptionPool deployed with vault:", _vault);
     }
 }
 

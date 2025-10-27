@@ -1,8 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import { Script, console } from "forge-std/Script.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Script } from "forge-std/Script.sol";
+// import { Vm } from "forge-std/Vm.sol";
 
 contract ScaffoldETHDeploy is Script {
     error InvalidChain();
@@ -78,7 +78,7 @@ contract ScaffoldETHDeploy is Script {
         return getChain(block.chainid);
     }
 
-    function anvil_setBalance(address addr, uint256 amount) public {
+    function anvilSetBalance(address addr, uint256 amount) public {
         string memory addressString = vm.toString(addr);
         string memory amountString = vm.toString(amount);
         string memory requestPayload = string.concat(

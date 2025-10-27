@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import "forge-std/console.sol";
+import {console} from "forge-std/console.sol";
 
 interface IUniswapV3Pool {
     function token0() external view returns (address);
@@ -50,52 +49,52 @@ contract OptionPrice {
         int256 sigmaSqrtT = int256(mul18( volatility , sqrt(t)*1e9));
 
         if (underlying == 0 ) underlying=1;
-        uint256 Ks = div18(underlying, strike);
+        uint256 ks = div18(underlying, strike);
 
-        require(Ks >= 0, "strike cannot be zero");
+        require(ks >= 0, "strike cannot be zero");
         // ln(underlying/strike)
-        int256 lnUS = ln(Ks);
+        int256 lnks = ln(ks);
 
         // (r + 0.5 * sigma^2) * t
         uint256 halfSigma2 = mul18(volatility, volatility)/2;
         int256 mu = int256(mul18((r + halfSigma2), t));
 
         // d1 = (ln(U/S) + (r + 0.5*sigma^2)*t) / (sigma*sqrt(t))
-        int256 d1 = div18(lnUS + mu , sigmaSqrtT);
+        int256 d1 = div18(lnks + mu , sigmaSqrtT);
 
         // d2 = d1 - sigma*sqrt(t)
         int256 d2 = d1 - sigmaSqrtT;
 
         // N(d1), N(d2)
-        uint256 Nd1 = normCDF(d1);
-        uint256 Nd2 = normCDF(d2);
-        uint256 Nd1n = normCDF(-d1);
-        uint256 Nd2n = normCDF(-d2);
+        uint256 nd1 = normCdf(d1);
+        uint256 nd2 = normCdf(d2);
+        uint256 nd1n = normCdf(-d1);
+        uint256 nd2n = normCdf(-d2);
 
         // exp(-r*t)
-        uint256 expRT = expNeg(mul18(r, t));
+        uint256 expRt = expNeg(mul18(r, t));
 
         console.log("left", sigmaSqrtT);
-        console.log("lnUS", lnUS);
+        console.log("lnUS", lnks);
         console.log("mu", mu);
         console.log("d1", d1);
         console.log("d2", d2);
-        console.log("Nd1", Nd1);
-        console.log("Nd2", Nd2);
-        console.log("Nd1n", Nd1n);
-        console.log("Nd2n", Nd2n);
-        console.log("exp(-r*t)", expRT);
+        console.log("Nd1", nd1);
+        console.log("Nd2", nd2);
+        console.log("Nd1n", nd1n);
+        console.log("Nd2n", nd2n);
+        console.log("exp(-r*t)", expRt);
         console.log("halfSigma2", halfSigma2);
         if (!isPut) {
-            console.log("left", mul18(underlying, Nd1));
-            console.log("right", mul18(mul18(strike,expRT ), Nd2) );
+            console.log("left", mul18(underlying, nd1));
+            console.log("right", mul18(mul18(strike,expRt ), nd2) );
             // C = U * N(d1) - S * exp(-r*t) * N(d2)
-            price = mul18(underlying, Nd1) - mul18(mul18(strike,expRT ), Nd2);
+            price = mul18(underlying, nd1) - mul18(mul18(strike,expRt ), nd2);
         } else {
-            console.log("right", mul18(underlying, Nd1n));
-            console.log("left", mul18(mul18(strike,expRT ), Nd2n) );
+            console.log("right", mul18(underlying, nd1n));
+            console.log("left", mul18(mul18(strike,expRt ), nd2n) );
             // P = S * exp(-r*t) * N(-d2) - U * N(-d1)
-            price = mul18(mul18(strike, expRT), Nd2n) - mul18(underlying, Nd1n);
+            price = mul18(mul18(strike, expRt), nd2n) - mul18(underlying, nd1n);
         }
     }
 
@@ -190,15 +189,15 @@ contract OptionPrice {
     }
 
     // Standard normal CDF using lookup table for common values
-    function normCDF(int256 x) public pure returns (uint256) {
+    function normCdf(int256 x) public pure returns (uint256) {
         if (x >= 0) {
-            return normCDFPositive(x);
+            return normCdfPositive(x);
         } else {
-            return uint256(1e18 - int256(normCDFPositive(-x)));
+            return uint256(1e18 - int256(normCdfPositive(-x)));
         }
     }
     
-    function normCDFOld(int256 x) public pure returns (uint256) {
+    function normCdfOld(int256 x) public pure returns (uint256) {
         uint256 x_ = abs(x);
         // rate = 1.67 in 1e18 fixed point
         uint256 rate = 1670000000000000000;
@@ -211,15 +210,15 @@ contract OptionPrice {
         return x>0 ? rightside : 1e18 - rightside;
     }
 
-    function normCDFPositiveUse(int256 x) public pure returns (uint256) {
+    function normCdfPositiveUse(int256 x) public pure returns (uint256) {
         if (x >= 0) {
-            return normCDFPositive(x);
+            return normCdfPositive(x);
         } else {
-            return 1e18 - normCDFPositive(-x);
+            return 1e18 - normCdfPositive(-x);
         }
     }
     
-    function normCDFPositive(int256 x) internal pure returns (uint256) {
+    function normCdfPositive(int256 x) internal pure returns (uint256) {
 
         uint64[101] memory table = [
             500000000000000000, 519938805838372480, 539827837277028992, 559617692370242496, 579259709439102976, 598706325682923648, 

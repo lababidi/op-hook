@@ -1,56 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Script.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
-import {OpHook} from "../contracts/OpHook.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {ScaffoldETHDeploy} from "./DeployHelpers.s.sol";
 
-
-import {HookMiner} from "lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
-import { UniversalRouter } from "@uniswap/universal-router/contracts/UniversalRouter.sol";
-import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
-import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-import { Commands } from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 
-import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
-
-import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
-
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {SwapParams, PoolKey} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, toBeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
-import {OptionPrice, IUniswapV3Pool} from "../contracts/OptionPrice.sol";
-
-import {IOptionToken} from "../contracts/IOptionToken.sol";
-import {IPermit2} from "../contracts/IPermit2.sol";
-
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {OpHook} from "../contracts/OpHook.sol";
 import {ConstantsUnichain} from "../contracts/ConstantsUnichain.sol";
-import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
 
 
 

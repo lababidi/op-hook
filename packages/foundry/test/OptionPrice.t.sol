@@ -8,12 +8,12 @@ contract OptionPriceTest is Test {
     address constant WETH_UNI_POOL = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
     OptionPrice public op;
 
-    string MAINNET_RPC_URL = "https://reth-ethereum.ithaca.xyz/rpc";
+    string rpc = "https://reth-ethereum.ithaca.xyz/rpc";
     uint mainnetFork;
     
     function setUp() public {
 
-        mainnetFork = vm.createSelectFork(MAINNET_RPC_URL, 23359458);
+        mainnetFork = vm.createSelectFork(rpc, 23359458);
         op = new OptionPrice();
     }
 
@@ -46,28 +46,28 @@ contract OptionPriceTest is Test {
     // normCDF function tests
     function testCDF() public view {
         assertApproxEqRel(
-            op.normCDF(0), 
+            op.normCdf(0), 
             0.5e18, 
             0.01e18, // 1% tolerance
             "CDF(0) should equal 0.5"
         );
         
         assertApproxEqRel(
-            op.normCDF(1e18), 
+            op.normCdf(1e18), 
             uint256(841344746068542948), 
             uint256(5e16), // 5% tolerance due to approximation
             "CDF(1) should be approximately 0.8413"
         );
         
         assertApproxEqRel(
-            op.normCDF(-1e18), 
+            op.normCdf(-1e18), 
             158655253931457051, 
             0.05e18, // 5% tolerance due to approximation
             "CDF(-1) should be approximately 0.1587"
         );
         
         assertApproxEqRel(
-            op.normCDF(2e18), 
+            op.normCdf(2e18), 
             977249868051820792, 
             0.05e18, // 5% tolerance due to approximation
             "CDF(2) should be approximately 0.9772"
@@ -243,18 +243,18 @@ contract OptionPriceTest is Test {
         int256 d2 = 150000000000000000; // 0.15 in 1e18 fixed point (actual value from Black-Scholes)
         
         console.log("Testing normCDF for d1 = 0.35");
-        uint256 Nd1 = op.normCDF(d1);
-        console.log("N(d1):", Nd1);
+        uint256 nd1 = op.normCdf(d1);
+        console.log("N(d1):", nd1);
         
         console.log("Testing normCDF for d2 = 0.15");
-        uint256 Nd2 = op.normCDF(d2);
-        console.log("N(d2):", Nd2);
+        uint256 nd2 = op.normCdf(d2);
+        console.log("N(d2):", nd2);
         
         // Expected values for the actual Black-Scholes calculation:
         // N(0.35) ≈ 0.6368
         // N(0.15) ≈ 0.5596
-        assertApproxEqRel(Nd1, 636800000000000000, 0.1e18, "N(0.35) should be approximately 0.6368");
-        assertApproxEqRel(Nd2, 559600000000000000, 0.1e18, "N(0.15) should be approximately 0.5596");
+        assertApproxEqRel(nd1, 636800000000000000, 0.1e18, "N(0.35) should be approximately 0.6368");
+        assertApproxEqRel(nd2, 559600000000000000, 0.1e18, "N(0.15) should be approximately 0.5596");
     }
 
 
