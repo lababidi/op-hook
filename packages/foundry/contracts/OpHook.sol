@@ -29,16 +29,18 @@ import {IPermit2} from "./IPermit2.sol";
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {console} from "forge-std/console.sol";
-// import {NonzeroDeltaCount} from "lib/uniswap-hooks/lib/v4-core/src/libraries/NonzeroDeltaCount.sol";
 
 uint160 constant SQRT_PRICE_X96 = 1<<96;
 int24 constant TICK_SPACING = type(int16).max;
 
 struct OptionPool {
     address collateral;
+    address pricePool;
+    bool collateralIsOne;
+
     address optionToken;
-    address token0;
-    address token1;
+    address cashToken;
+    bool optionIsOne;
     uint24 fee;
     int24 tickSpacing;
     uint160 sqrtPriceX96;
@@ -53,22 +55,15 @@ struct CurrentOptionPrice {
     uint256 collateralPrice;
 }
 
-struct Amount {
-    uint256 collateralAmount;
-    int128 collateralAmount_;
+
+struct Price {
+    uint256 optionAmount;
     uint256 cashAmount;
-    int128 cashAmount_;
-    uint256 amount;
-    int128 amount_;
     uint256 collateralPrice;
     uint256 price;
-    address option;
-    Currency cashCurrency;
-    Currency optionCurrency;
-    bool cashForOption;
 }
 
-contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
+contract OpHook is BaseHook, Ownable, ReentrancyGuard, Pausable {
     using PoolIdLibrary for PoolKey;
     using Math for uint256;
     using SafeERC20 for IERC20;
@@ -81,48 +76,54 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
     event FeeRateUpdated(uint256 oldRate, uint256 newRate);
     event OptionPoolUpdated(address indexed oldPool, address indexed newPool);
     event EmergencyWithdraw(address indexed owner, uint256 amount);
-    event Swap(address, address, uint256, uint256, uint256);
+    event Swap(address, address, int256, uint256);
 
     OptionPrice public optionPrice;
 
-    IERC20 public collateral;
-    IERC20 public cash;
-    IUniswapV3Pool public pricePool;
-    address public cashToken;
-    address public collateralToken;
-    bool public collateralIsOne;
-    uint8 decimals0;
-    uint8 decimals1;
-    uint256 power;
-
-
     IPermit2 public immutable PERMIT2;
-    address public poolManager_;
+    address public pm;
 
-    OptionPool[] public pools;
-    mapping(address => bool) public options;
+    OptionPool[] public allPools;
+    mapping(address => mapping(address => OptionPool)) public optionCashPool;
+    mapping(bytes32 => OptionPool) public optionPools;
+    mapping(address => OptionPool[]) public collateralPools;
+    mapping(address => IUniswapV3Pool) public collateralPricePool;
+    mapping(address => bool) public cash;
+    mapping(address => bool) public validOptions;
+    mapping(address => OptionPool[]) public optionPoolList;
 
-    constructor(IPoolManager _poolManager, address permit2, address _collateral, address _cash, string memory _name, string memory _symbol, address _pricePool) 
+    modifier validCash(address cash_) {
+        require(cash[cash_], "Invalid cash address");
+        _;
+    }
+    modifier validOption(address option_) {
+        require(optionPoolList[option_].length > 0, "Invalid option address");
+        _;
+    }
+
+    constructor(IPoolManager _poolManager, address permit2) 
     BaseHook(_poolManager) 
-    ERC4626(IERC20(_collateral)) 
-    ERC20(_name, _symbol) 
     Ownable(msg.sender) {
         optionPrice = new OptionPrice();
         PERMIT2 = IPermit2(permit2);
-        poolManager_ = address(_poolManager);
+        pm = address(_poolManager);
 
-        collateralToken = _collateral;
-        cashToken = _cash;
-        collateral = IERC20(_collateral);
-        cash = IERC20(cashToken);
+    }
 
-        pricePool = IUniswapV3Pool(_pricePool);
-        collateralIsOne = address(collateral) > address(cash);
-        decimals0 = IERC20Metadata(pricePool.token0()).decimals();
-        decimals1 = IERC20Metadata(pricePool.token1()).decimals();
-        power = 10 ** (decimals1 >= decimals0 ? decimals1 - decimals0 : decimals0 - decimals1);
+    function toId(PoolKey memory k) internal pure returns (bytes32) {
+        // make sure currency0 < currency1 is already enforced when constructing k
+        // prefer abi.encode (not encodePacked) to avoid any theoretical collisions
+        return keccak256(abi.encode(
+            Currency.unwrap(k.currency0),
+            Currency.unwrap(k.currency1),
+            k.fee,
+            k.tickSpacing,
+            k.hooks
+        ));
+    }
 
-
+    function addCash(address _cash) external onlyOwner {
+        cash[_cash] = true;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -143,95 +144,83 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             afterRemoveLiquidityReturnDelta: false
         });
     }
-    function calculateValues(Currency token0, Currency token1, int256 amountSpecified, bool zeroForOne) internal view returns (Amount memory amounts){
-        address option;
-        Currency optionCurrency;
-        Currency cashCurrency;
-        address token0_ = Currency.unwrap(token0);
-        address token1_ = Currency.unwrap(token1);
-        bool cashForOption;
-        if (options[token1_]){
-            option = token1_;
-            optionCurrency = token1;
-            cashCurrency = token0;
-            cashForOption = zeroForOne;
-        } else if (options[token0_]){
-            option = token0_;
-            optionCurrency = token0;
-            cashCurrency = token1;
-            cashForOption = !zeroForOne;
-        } else {
-            revert("Token not whitelisted");
-        }
-        require(amountSpecified < 0, "amountSpecified must be negative");
-        uint256 amount = uint256(-amountSpecified);
-        int128 amount_ = SafeCast.toInt128(int256(amount));
-        uint256 collateralPrice = getCollateralPrice();
+
+    function to128(uint256 x) internal pure returns (int128 y) {
+        return SafeCast.toInt128(int256(x));
+    }
+
+    function abs(int256 x) internal pure returns (uint256) {
+        return uint256(x < 0 ? -x : x);
+    }
+
+    function calculateOption(address collateral, address option, int256 cashAmount) internal view returns (Price memory amounts){
+        uint256 collateralPrice = getCollateralPrice(collateral);
         uint256 price = getPrice(collateralPrice, option);
 
-        uint256 collateralAmount = calculateCollateral(amount, price);
-        int128 collateralAmount_ = SafeCast.toInt128(int256(collateralAmount));
-        uint256 cashAmount = Math.mulDiv(amount, 1e36, price);
-        int128 cashAmount_ = SafeCast.toInt128(int256(cashAmount));
-        console.log("token0", token0_);
-        console.log("token1", token1_);
-        console.log("cashforOption", cashForOption);
-        amounts = Amount({
-            amount:amount,
-            amount_:amount_,
-            collateralAmount:collateralAmount,
-            collateralAmount_:collateralAmount_,
-            cashAmount:cashAmount,
-            cashAmount_:cashAmount_,
-            price:price,
+        amounts = Price({
             collateralPrice:collateralPrice,
-            option:option,
-            cashCurrency:cashCurrency,
-            optionCurrency:optionCurrency,
-            cashForOption:cashForOption
+            price:price,
+            optionAmount: calculateOption(abs(cashAmount), price),
+            cashAmount: abs(cashAmount)
             }
         );
     }
 
-    function availableCollateral() external view returns (uint256){
-        return collateral.balanceOf(address(this));
+    function calculateCash(address collateral, address option, int256 optionAmount) internal view returns (Price memory amounts){
+        uint256 collateralPrice = getCollateralPrice(collateral);
+        uint256 price = getPrice(collateralPrice, option);
+        
+        amounts = Price({
+            collateralPrice:collateralPrice,
+            price:price,
+            optionAmount: abs(optionAmount),
+            cashAmount: calculateCash(abs(optionAmount), price)
+            }
+        );
     }
 
-    function calculateCash(uint256 collateralAmount, uint256 price) public pure returns (uint256){
-        return Math.mulDiv(collateralAmount, 1e36, price);
+    function availableCollateral(address collateral) external view returns (uint256){
+        return IERC20(collateral).balanceOf(address(this));
     }
 
-    function calculateCollateral(uint256 cashAmount, uint256 price) public pure returns (uint256){
-        return Math.mulDiv(cashAmount, price, 1e18);
+    function calculateOption(uint256 cashAmount, uint256 price) public pure returns (uint256){
+        return Math.mulDiv(cashAmount, 1e18, price);
     }
 
-    function transferCash(uint256 cashAmount) internal returns (uint256 cashTransferred){
-        uint256 initialCash = cash.balanceOf(address(this));
-        cash.safeTransferFrom(msg.sender, address(this), cashAmount);
-        cashTransferred = cash.balanceOf(address(this)) - initialCash;
+    function calculateCash(uint256 optionAmount, uint256 price) public pure returns (uint256){
+        return Math.mulDiv(optionAmount, price, 1e18);
+    }
+
+    function transferCash(address cash_, uint256 cashAmount) internal returns (uint256 cashTransferred){
+        IERC20  _cash = IERC20(cash_);
+        uint256 initialCash = _cash.balanceOf(address(this));
+        _cash.safeTransferFrom(msg.sender, address(this), cashAmount);
+        cashTransferred = _cash.balanceOf(address(this)) - initialCash;
         require(cashTransferred > 0, "No Cash Transferred in");
     }
 
-    function swap(address optionToken, uint256 cashAmount, address to) external nonReentrant {
-        require(cashAmount > 0, "amountA=0");
-        require(to != address(0), "bad to");
-        require(options[optionToken], "option not part of group");
-
-        Amount memory a = calculateValues(Currency.wrap(cashToken), Currency.wrap(optionToken), -int256(cashAmount), true);
-        IOptionToken option = IOptionToken(optionToken);
-
-        if(collateral.balanceOf(address(this)) < a.collateralAmount){
-            cashAmount = calculateCash(collateral.balanceOf(address(this)), a.price);
-        }
-        uint256 cashTransferred = transferCash(cashAmount);
-
-        uint256 optionAmount = calculateCollateral(cashTransferred, a.price);
-
-        option.mint(optionAmount);
-        option.safeTransfer(to, optionAmount);
-
-        emit Swap(msg.sender, to, cashTransferred, optionAmount, a.price);
+    function collateralBalance(address collateral) public view returns (uint256){
+        return IERC20(collateral).balanceOf(address(this));
     }
+
+
+    function swapForOption(address optionToken, address cashToken, int256 amount, address to) public nonReentrant validCash(cashToken) validOption(optionToken) {
+        require(to != address(0), "bad to");
+        IOptionToken option = IOptionToken(optionToken);
+        address collateral = address(option.collateral());
+
+        Price memory p = calculateCash(collateral, optionToken, -int256(amount));
+
+        transferCash(cashToken, p.cashAmount);
+        option.mint(p.optionAmount);
+        option.safeTransfer(to, p.optionAmount);
+
+        emit Swap(msg.sender, to, amount, p.price);
+    }
+
+    function swapForOption(address optionToken, address cashToken, int256 cashAmount) public nonReentrant validCash(cashToken) {
+        swapForOption(optionToken, cashToken, cashAmount, msg.sender);
+        }
 
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
@@ -240,33 +229,35 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         require(params.amountSpecified < 0, "amountSpecified must be negative");
         zeroReturn = 0;
         selector = BaseHook.beforeSwap.selector;
-        Amount memory a = calculateValues(
-            key.currency0, 
-            key.currency1, 
-            params.amountSpecified,
-            params.zeroForOne
+
+        OptionPool memory pool = optionPools[toId(key)];
+        bool cashForOption = pool.optionIsOne ? params.zeroForOne : !params.zeroForOne;
+        Currency cashCurrency = pool.optionIsOne ? key.currency0 : key.currency1;
+        Currency optionCurrency = pool.optionIsOne ? key.currency1 : key.currency0;
+        Price memory a = calculateCash(
+            pool.collateral, 
+            pool.optionToken, 
+            params.amountSpecified
             );
-        IOptionToken option = IOptionToken(a.option);
+        IOptionToken option = IOptionToken(pool.optionToken);
         require(option.expirationDate() > block.timestamp, "Option expired");
 
-        if (a.cashForOption) {
+        if (cashForOption) {
             // Here we JIT create option tokens and let the flash accounting handle transfers
-            option.mint(a.collateralAmount);
-            poolManager.take(a.cashCurrency, address(this), a.amount);
-            poolManager.sync(a.optionCurrency);
-            option.safeTransfer(poolManager_, a.collateralAmount);
+            option.mint(a.optionAmount);
+            poolManager.take(cashCurrency, address(this), a.cashAmount);
+            poolManager.sync(optionCurrency);
+            option.safeTransfer(pm, a.optionAmount);
             poolManager.settle();
-            console.log("collateralAmount_", a.collateralAmount_);
-            console.log("amount_", a.amount_);
-            delta = toBeforeSwapDelta(a.amount_, -a.collateralAmount_);
+            delta = toBeforeSwapDelta(to128(a.cashAmount), -to128(a.optionAmount));
         } else {
             // Here we have to take the option tokens from the caller and burn them
-            poolManager.take(a.optionCurrency, address(this), a.amount);
-            poolManager.sync(a.cashCurrency);
-            cash.safeTransfer(poolManager_, a.cashAmount);
+            poolManager.take(optionCurrency, address(this), a.optionAmount);
+            poolManager.sync(cashCurrency);
+            IERC20(pool.cashToken).safeTransfer(pm, a.cashAmount);
             poolManager.settle();
-            option.redeem(a.amount);
-            delta = toBeforeSwapDelta( a.amount_, -a.cashAmount_);
+            option.redeem(a.optionAmount);
+            delta = toBeforeSwapDelta( to128(a.optionAmount), -to128(a.cashAmount));
         }
     }
 
@@ -291,7 +282,14 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
 
     // Returns price of 1 token0 in token1 with 18 decimals precision
     // How much token1 you need to buy 1 token0 is sqrtPriceX96
-    function getCollateralPrice() public view returns (uint256 price) {
+    function getCollateralPrice(address collateral) public view returns (uint256 price) {
+
+        IUniswapV3Pool pricePool = IUniswapV3Pool(collateralPricePool[collateral]);
+
+        bool collateralIsOne = pricePool.token0() == collateral ? pricePool.token1() == collateral : pricePool.token0() == collateral;
+        uint8 decimals0 = IERC20Metadata(pricePool.token0()).decimals();
+        uint8 decimals1 = IERC20Metadata(pricePool.token1()).decimals();
+        uint256 power = 10 ** (decimals1 >= decimals0 ? decimals1 - decimals0 : decimals0 - decimals1);
 
         (uint160 sqrtPriceX96,,,,,,) = pricePool.slot0();
         // Calculate price with proper scaling
@@ -304,12 +302,11 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
             require(price > 0, "Price cannot be zero for inverse calculation");
             price = 1e36 / price;
         }
-
-        return price;
     }
 
     function getPrice( address option_) public view returns (uint256) {
-        return getPrice(getCollateralPrice(), option_);
+        OptionPool memory pool = optionPoolList[option_][0];
+        return getPrice(getCollateralPrice(pool.collateral), option_);
     }
 
     function getPrice(uint256 collateralPrice, address option_) public view returns (uint256) {
@@ -317,28 +314,32 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         return optionPrice.getPrice(collateralPrice, option.strike(), option.expirationDate(), option.isPut(), false);
     }
 
-    function getPrices() public view returns (CurrentOptionPrice[] memory prices) {
-        prices = new CurrentOptionPrice[](pools.length);
-        uint256 collateralPrice = getCollateralPrice();
-        for (uint256 i = 0; i < pools.length; i++) {
+    function getPrices(address collateral) public view returns (CurrentOptionPrice[] memory prices) {
+        prices = new CurrentOptionPrice[](allPools.length);
+        uint256 collateralPrice = getCollateralPrice(collateral);
+        for (uint256 i = 0; i < allPools.length; i++) {
                 prices[i] =  CurrentOptionPrice({
                     collateralPrice: collateralPrice,
                     collateral: address(collateral),
-                    optionToken: pools[i].optionToken,
-                    price: getPrice(collateralPrice, pools[i].optionToken)
+                    optionToken: allPools[i].optionToken,
+                    price: getPrice(collateralPrice, allPools[i].optionToken)
             });
         }
     }
 
     function initPool(
         address optionToken,
+        address cashToken,
+        address collateral,
+        address pricePool,
         uint24 fee
     ) public returns (PoolKey memory) {
 
-        IOptionToken optionToken_ = IOptionToken(optionToken);
-        uint256 expiration = optionToken_.expirationDate();
-        address token0 = cashToken < optionToken ? cashToken : optionToken;
-        address token1 = cashToken < optionToken ? optionToken : cashToken;
+        IOptionToken option = IOptionToken(optionToken);
+        uint256 expiration = option.expirationDate();
+        bool optionIsOne = cashToken < optionToken;
+        address token0 = optionIsOne ? cashToken : optionToken;
+        address token1 = optionIsOne ? optionToken : cashToken;
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(token0),
@@ -349,200 +350,29 @@ contract OpHook is BaseHook, ERC4626, Ownable, ReentrancyGuard, Pausable {
         });
         poolManager.initialize(poolKey, SQRT_PRICE_X96);
 
-        OptionPool memory pool = OptionPool({
-            collateral: address(collateral),
-            token0: token0,
-            token1: token1,
-            fee: fee,
-            tickSpacing: TICK_SPACING,
-            sqrtPriceX96: SQRT_PRICE_X96,  //todo: verify this
+        IUniswapV3Pool pool = IUniswapV3Pool(pricePool);
+        bool collateralIsOne = pool.token0() == collateral ? pool.token1() == collateral : pool.token0() == collateral;
+
+        OptionPool memory optionPool  = OptionPool({
+            collateral: collateral,
+            collateralIsOne: collateralIsOne,
+            pricePool: pricePool,
+
+            optionIsOne: optionIsOne,
+            cashToken: cashToken,
             optionToken: optionToken,
             expiration: expiration,
-            strike: optionToken_.strike()
+            strike: option.strike(),
+
+            tickSpacing: TICK_SPACING,
+            sqrtPriceX96: SQRT_PRICE_X96,  //todo: verify this
+            fee: fee
         });
-        pools.push(pool);
-        options[optionToken] = true;
+        allPools.push(optionPool);
+        optionPools[toId(poolKey)] = optionPool;
+        collateralPools[collateral].push(optionPool);
+        optionPoolList[optionToken].push(optionPool);
         return poolKey;
-    }
-
-    // ============ ERC4626 Overrides ============
-    
-    function deposit(uint256 assets, address receiver) 
-        public 
-        override 
-        whenNotPaused 
-        nonReentrant 
-        returns (uint256 shares) 
-    {
-        
-        shares = super.deposit(assets, receiver);
-        
-        // Additional logic for option pool integration can be added here
-        _afterDeposit(assets, shares, receiver);
-        
-        return shares;
-    }
-    
-    function mint(uint256 shares, address receiver) 
-        public 
-        override 
-        whenNotPaused 
-        nonReentrant 
-        returns (uint256 assets) 
-    {
-        require(shares > 0, "OptionPoolVault: zero shares");
-        
-        assets = super.mint(shares, receiver);
-        
-        // Additional logic for option pool integration can be added here
-        _afterMint(assets, shares, receiver);
-        
-        return assets;
-    }
-    
-    function withdraw(uint256 assets, address receiver, address owner) 
-        public 
-        override 
-        whenNotPaused 
-        nonReentrant 
-        returns (uint256 shares) 
-    {
-        shares = super.withdraw(assets, receiver, owner);
-        
-        // Additional logic for option pool integration can be added here
-        _afterWithdraw(assets, shares, receiver, owner);
-        
-        return shares;
-    }
-    
-    function redeem(uint256 shares, address receiver, address owner) 
-        public 
-        override 
-        whenNotPaused 
-        nonReentrant 
-        returns (uint256 assets) 
-    {
-        assets = super.redeem(shares, receiver, owner);
-        
-        // Additional logic for option pool integration can be added here
-        _afterRedeem(assets, shares, receiver, owner);
-        
-        return assets;
-    }
-
-    // ============ View Functions ============
-    
-    /**
-     * @dev Get vault statistics
-     * @return totalAssets_ Total assets in the vault
-     * @return totalShares_ Total shares minted
-     * @return exchangeRate_ Current exchange rate (assets per share)
-     * @return utilizationRate_ Current utilization rate
-     */
-    function getVaultStats() external view returns (
-        uint256 totalAssets_,
-        uint256 totalShares_,
-        uint256 exchangeRate_,
-        uint256 utilizationRate_
-    ) {
-        totalAssets_ = totalAssets();
-        totalShares_ = totalSupply();
-        exchangeRate_ = totalShares_ > 0 ? totalAssets_ * 1e18 / totalShares_ : 1e18;
-        utilizationRate_ =  0;
-    }
-
-    // ============ Internal Hooks ============
-    
-    /**
-     * @dev Hook called after deposit
-     * @param assets Amount of assets deposited
-     * @param shares Amount of shares minted
-     * @param receiver Address receiving the shares
-     */
-    function _afterDeposit(uint256 assets, uint256 shares, address receiver) internal virtual {
-        // Override in child contracts to add custom logic
-    }
-    
-    /**
-     * @dev Hook called after mint
-     * @param assets Amount of assets deposited
-     * @param shares Amount of shares minted
-     * @param receiver Address receiving the shares
-     */
-    function _afterMint(uint256 assets, uint256 shares, address receiver) internal virtual {
-        // Override in child contracts to add custom logic
-    }
-    
-    /**
-     * @dev Hook called after withdraw
-     * @param assets Amount of assets withdrawn
-     * @param shares Amount of shares burned
-     * @param receiver Address receiving the assets
-     * @param owner Address that owned the shares
-     */
-    function _afterWithdraw(uint256 assets, uint256 shares, address receiver, address owner) internal virtual {
-        // Override in child contracts to add custom logic
-    }
-    
-    /**
-     * @dev Hook called after redeem
-     * @param assets Amount of assets withdrawn
-     * @param shares Amount of shares burned
-     * @param receiver Address receiving the assets
-     * @param owner Address that owned the shares
-     */
-    function _afterRedeem(uint256 assets, uint256 shares, address receiver, address owner) internal virtual {
-        // Override in child contracts to add custom logic
-    }
-
-    // ============ ERC4626 Required Overrides ============
-    
-    /**
-     * @dev Override to implement custom conversion logic if needed
-     */
-    function _convertToShares(uint256 assets, Math.Rounding rounding) 
-        internal 
-        view 
-        virtual 
-        override 
-        returns (uint256 shares) 
-    {
-        return super._convertToShares(assets, rounding);
-    }
-    
-    /**
-     * @dev Override to implement custom conversion logic if needed
-     */
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) 
-        internal 
-        view 
-        virtual 
-        override 
-        returns (uint256 assets) 
-    {
-        return super._convertToAssets(shares, rounding);
-    }
-    
-    /**
-     * @dev Override to implement custom deposit logic if needed
-     */
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) 
-        internal 
-        virtual 
-        override 
-    {
-        super._deposit(caller, receiver, assets, shares);
-    }
-    
-    /**
-     * @dev Override to implement custom withdraw logic if needed
-     */
-    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) 
-        internal 
-        virtual 
-        override 
-    {
-        super._withdraw(caller, receiver, owner, assets, shares);
     }
 
 }
